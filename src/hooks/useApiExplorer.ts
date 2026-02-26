@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import type {
   ProviderType,
   ProviderConfig,
@@ -18,6 +18,37 @@ const PROVIDER_DEFAULTS: Record<ProviderType, { baseUrl: string; model: string }
   anthropic: { baseUrl: 'https://api.anthropic.com', model: 'claude-sonnet-4-20250514' },
 }
 
+const STORAGE_KEY = 'llm-api-explorer-config'
+
+function loadSavedConfig(): ProviderConfig | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<ProviderConfig>
+    // Validate the shape
+    if (
+      parsed.provider &&
+      (parsed.provider === 'openai' || parsed.provider === 'anthropic') &&
+      typeof parsed.baseUrl === 'string' &&
+      typeof parsed.apiKey === 'string' &&
+      typeof parsed.model === 'string'
+    ) {
+      return parsed as ProviderConfig
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+function saveConfig(config: ProviderConfig): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
+  } catch {
+    // localStorage may be unavailable; silently ignore
+  }
+}
+
 function createInitialStats(): RequestStats {
   return {
     startTime: 0,
@@ -33,12 +64,19 @@ function createInitialStats(): RequestStats {
 }
 
 export function useApiExplorer() {
-  const [config, setConfig] = useState<ProviderConfig>({
-    provider: 'openai',
-    baseUrl: PROVIDER_DEFAULTS.openai.baseUrl,
-    apiKey: '',
-    model: PROVIDER_DEFAULTS.openai.model,
+  const [config, setConfig] = useState<ProviderConfig>(() => {
+    return loadSavedConfig() ?? {
+      provider: 'openai',
+      baseUrl: PROVIDER_DEFAULTS.openai.baseUrl,
+      apiKey: '',
+      model: PROVIDER_DEFAULTS.openai.model,
+    }
   })
+
+  // Persist config to localStorage whenever it changes
+  useEffect(() => {
+    saveConfig(config)
+  }, [config])
 
   const [messages, setMessages] = useState<Message[]>([
     { role: 'user', content: 'Hello!' },
