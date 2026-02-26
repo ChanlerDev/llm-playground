@@ -30,7 +30,7 @@ function App() {
     stats,
   } = useApiExplorer()
 
-  const [selectedChunkId, setSelectedChunkId] = useState<string | null>(null)
+  const [_selectedChunkId, setSelectedChunkId] = useState<string | null>(null)
 
   // Determine if we are in a streaming state (stream enabled and currently loading)
   const isStreaming = params.stream && isLoading

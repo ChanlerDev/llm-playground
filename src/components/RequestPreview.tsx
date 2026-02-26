@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
-import { Copy, Check, Terminal } from 'lucide-react'
+import { Check, Terminal } from 'lucide-react'
 import type { ProviderType } from '@/types/provider'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
