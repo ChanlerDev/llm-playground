@@ -43,6 +43,15 @@ export async function parseStream(
   // Anthropic streaming tool_use accumulation
   let currentAnthropicToolUse: { id: string; name: string; arguments: string } | null = null
 
+  const emitAnthropicToolUse = (toolUse: { id: string; name: string; arguments: string }) => {
+    try {
+      const input = JSON.parse(toolUse.arguments)
+      onAnthropicToolUse({ id: toolUse.id, name: toolUse.name, input })
+    } catch {
+      onAnthropicToolUse({ id: toolUse.id, name: toolUse.name, input: toolUse.arguments })
+    }
+  }
+
   try {
     while (true) {
       const { done, value } = await reader.read()
@@ -61,12 +70,7 @@ export async function parseStream(
 
         // Emit any remaining Anthropic tool_use
         if (currentAnthropicToolUse) {
-          try {
-            const input = JSON.parse(currentAnthropicToolUse.arguments)
-            onAnthropicToolUse({ id: currentAnthropicToolUse.id, name: currentAnthropicToolUse.name, input })
-          } catch {
-            onAnthropicToolUse({ id: currentAnthropicToolUse.id, name: currentAnthropicToolUse.name, input: currentAnthropicToolUse.arguments })
-          }
+          emitAnthropicToolUse(currentAnthropicToolUse)
           currentAnthropicToolUse = null
         }
 
@@ -237,12 +241,7 @@ export async function parseStream(
         if (eventType === 'content_block_start') {
           // Emit any previously accumulated tool_use
           if (currentAnthropicToolUse) {
-            try {
-              const input = JSON.parse(currentAnthropicToolUse.arguments)
-              onAnthropicToolUse({ id: currentAnthropicToolUse.id, name: currentAnthropicToolUse.name, input })
-            } catch {
-              onAnthropicToolUse({ id: currentAnthropicToolUse.id, name: currentAnthropicToolUse.name, input: currentAnthropicToolUse.arguments })
-            }
+            emitAnthropicToolUse(currentAnthropicToolUse)
             currentAnthropicToolUse = null
           }
           const block = parsedData.content_block as { type?: string; id?: string; name?: string } | undefined
@@ -257,12 +256,7 @@ export async function parseStream(
         } else if (eventType === 'content_block_stop') {
           // Emit accumulated tool_use when block ends
           if (currentAnthropicToolUse) {
-            try {
-              const input = JSON.parse(currentAnthropicToolUse.arguments)
-              onAnthropicToolUse({ id: currentAnthropicToolUse.id, name: currentAnthropicToolUse.name, input })
-            } catch {
-              onAnthropicToolUse({ id: currentAnthropicToolUse.id, name: currentAnthropicToolUse.name, input: currentAnthropicToolUse.arguments })
-            }
+            emitAnthropicToolUse(currentAnthropicToolUse)
             currentAnthropicToolUse = null
           }
         }

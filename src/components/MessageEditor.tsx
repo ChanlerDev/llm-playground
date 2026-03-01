@@ -66,7 +66,7 @@ function ToolCallIdBadge({ toolCallId }: { toolCallId?: string }) {
   )
 }
 
-export function MessageEditor({ systemPrompt, setSystemPrompt, messages, setMessages, provider }: MessageEditorProps) {
+export function MessageEditor({ systemPrompt, setSystemPrompt, messages, setMessages, provider: _provider }: MessageEditorProps) {
   const roles = ['user', 'assistant', 'tool']
 
   function updateMessage(index: number, patch: Partial<Message>) {
