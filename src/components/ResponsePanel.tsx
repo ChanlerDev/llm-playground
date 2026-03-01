@@ -1,7 +1,9 @@
-import { AlertCircle, Loader2, FileText, Radio, Code2 } from 'lucide-react'
+import { useState } from 'react'
+import { AlertCircle, Loader2, FileText, Radio, Code2, MessageSquarePlus, Check, Trash2 } from 'lucide-react'
 import type { SSEChunk } from '@/types/provider'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@/components/ui/button'
 import { JsonViewer } from '@/components/JsonViewer'
 import { StreamViewer } from '@/components/StreamViewer'
 import { cn } from '@/lib/utils'
@@ -12,7 +14,10 @@ interface ResponsePanelProps {
   responseBody: unknown
   assembledContent: string
   chunks: SSEChunk[]
-  isStreaming: boolean
+  isStreamMode: boolean
+  isActivelyStreaming: boolean
+  onAddToMessages?: () => void
+  onClear?: () => void
 }
 
 function ErrorBanner({ error }: { error: string }) {
@@ -39,20 +44,22 @@ function LoadingIndicator() {
 }
 
 function ResponseTab({
-  isStreaming,
-  isLoading,
+  isStreamMode,
+  isActivelyStreaming,
   responseBody,
   chunks,
 }: {
-  isStreaming: boolean
-  isLoading: boolean
+  isStreamMode: boolean
+  isActivelyStreaming: boolean
   responseBody: unknown
   chunks: SSEChunk[]
 }) {
-  if (isStreaming) {
-    return <StreamViewer chunks={chunks} isStreaming={isLoading} />
+  // Show StreamViewer if stream mode is on AND we have (or are receiving) chunks
+  if (isStreamMode && (chunks.length > 0 || isActivelyStreaming)) {
+    return <StreamViewer chunks={chunks} isStreaming={isActivelyStreaming} />
   }
 
+  // Non-streaming: show full JSON response
   if (responseBody != null) {
     return (
       <div className="p-4">
@@ -72,12 +79,16 @@ function ResponseTab({
 function ContentTab({
   assembledContent,
   isLoading,
-  isStreaming,
+  isActivelyStreaming,
+  onAddToMessages,
 }: {
   assembledContent: string
   isLoading: boolean
-  isStreaming: boolean
+  isActivelyStreaming: boolean
+  onAddToMessages?: () => void
 }) {
+  const [added, setAdded] = useState(false)
+
   if (!assembledContent && !isLoading) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-16 text-zinc-500">
@@ -87,17 +98,55 @@ function ContentTab({
     )
   }
 
+  const handleAdd = () => {
+    if (!assembledContent || !onAddToMessages) return
+    onAddToMessages()
+    setAdded(true)
+    setTimeout(() => setAdded(false), 2000)
+  }
+
   return (
-    <ScrollArea className="h-full">
-      <pre className="p-4 font-mono text-sm leading-relaxed text-zinc-200 whitespace-pre-wrap break-words">
-        <code>
-          {assembledContent}
-          {isLoading && isStreaming && (
-            <span className="inline-block h-4 w-1.5 animate-pulse bg-zinc-400 align-middle" />
-          )}
-        </code>
-      </pre>
-    </ScrollArea>
+    <div className="flex h-full flex-col">
+      {/* Add to Messages button */}
+      {assembledContent && !isActivelyStreaming && onAddToMessages && (
+        <div className="shrink-0 border-b border-zinc-800 px-4 py-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn(
+              'w-full border-zinc-700 text-xs',
+              added
+                ? 'border-green-700 text-green-400 hover:text-green-400'
+                : 'text-zinc-400 hover:text-zinc-200',
+            )}
+            onClick={handleAdd}
+          >
+            {added ? (
+              <>
+                <Check className="size-3.5" />
+                Added as assistant message
+              </>
+            ) : (
+              <>
+                <MessageSquarePlus className="size-3.5" />
+                Add to Messages as Assistant
+              </>
+            )}
+          </Button>
+        </div>
+      )}
+
+      <ScrollArea className="min-h-0 flex-1">
+        <pre className="p-4 font-mono text-sm leading-relaxed text-zinc-200 whitespace-pre-wrap break-words">
+          <code>
+            {assembledContent}
+            {isActivelyStreaming && (
+              <span className="inline-block h-4 w-1.5 animate-pulse bg-zinc-400 align-middle" />
+            )}
+          </code>
+        </pre>
+      </ScrollArea>
+    </div>
   )
 }
 
@@ -138,8 +187,13 @@ export function ResponsePanel({
   responseBody,
   assembledContent,
   chunks,
-  isStreaming,
+  isStreamMode,
+  isActivelyStreaming,
+  onAddToMessages,
+  onClear,
 }: ResponsePanelProps) {
+  const hasContent = responseBody != null || assembledContent || chunks.length > 0 || error
+
   return (
     <div className="flex h-full flex-col bg-zinc-950">
       {/* Error banner */}
@@ -150,24 +204,41 @@ export function ResponsePanel({
 
       {/* Tabs */}
       <Tabs defaultValue="response" className="flex min-h-0 flex-1 flex-col">
-        <div className="shrink-0 border-b border-zinc-800 px-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-zinc-800 px-4">
           <TabsList variant="line" className="h-9">
             <TabsTrigger value="response" className="text-xs">
               Response
+              {chunks.length > 0 && (
+                <span className="ml-1.5 text-[10px] text-zinc-500">({chunks.length})</span>
+              )}
             </TabsTrigger>
             <TabsTrigger value="content" className="text-xs">
               Content
             </TabsTrigger>
             <TabsTrigger value="raw" className="text-xs">
               Raw SSE
+              {chunks.length > 0 && (
+                <span className="ml-1.5 text-[10px] text-zinc-500">({chunks.length})</span>
+              )}
             </TabsTrigger>
           </TabsList>
+          {hasContent && !isLoading && onClear && (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="text-zinc-500 hover:text-red-400"
+              onClick={onClear}
+              title="Clear response"
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          )}
         </div>
 
         <TabsContent value="response" className="min-h-0 flex-1 overflow-auto">
           <ResponseTab
-            isStreaming={isStreaming}
-            isLoading={isLoading}
+            isStreamMode={isStreamMode}
+            isActivelyStreaming={isActivelyStreaming}
             responseBody={responseBody}
             chunks={chunks}
           />
@@ -177,7 +248,8 @@ export function ResponsePanel({
           <ContentTab
             assembledContent={assembledContent}
             isLoading={isLoading}
-            isStreaming={isStreaming}
+            isActivelyStreaming={isActivelyStreaming}
+            onAddToMessages={onAddToMessages}
           />
         </TabsContent>
 

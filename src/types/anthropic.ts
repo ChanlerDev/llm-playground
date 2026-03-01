@@ -1,18 +1,23 @@
 export interface AnthropicRequest {
   model: string
   max_tokens: number
-  messages: AnthropicMessage[]
+  messages: Record<string, unknown>[]
   system?: string
   temperature?: number
   top_p?: number
   top_k?: number
   stream?: boolean
   stop_sequences?: string[]
+  tools?: {
+    name: string
+    description: string
+    input_schema: Record<string, unknown>
+  }[]
 }
 
 export interface AnthropicMessage {
   role: 'user' | 'assistant'
-  content: string
+  content: string | unknown[]
 }
 
 export interface AnthropicResponse {

@@ -1,13 +1,16 @@
-import { useState, useMemo, useCallback } from 'react'
-import { Check, Terminal } from 'lucide-react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
+import { Check, Terminal, Pencil, RotateCcw } from 'lucide-react'
 import type { ProviderType } from '@/types/provider'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 import { JsonViewer } from '@/components/JsonViewer'
 
 interface RequestPreviewProps {
   buildRequest: () => { url: string; headers: Record<string, string>; body: unknown }
   provider: ProviderType
+  bodyOverride: string | null
+  setBodyOverride: (value: string | null) => void
 }
 
 function maskValue(value: string): string {
@@ -41,8 +44,16 @@ function buildCurlCommand(
   return parts.join(' \\\n')
 }
 
-export function RequestPreview({ buildRequest, provider }: RequestPreviewProps) {
+export function RequestPreview({
+  buildRequest,
+  provider,
+  bodyOverride,
+  setBodyOverride,
+}: RequestPreviewProps) {
   const [curlCopied, setCurlCopied] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState('')
+  const [jsonError, setJsonError] = useState<string | null>(null)
 
   const request = useMemo(() => {
     try {
@@ -52,13 +63,51 @@ export function RequestPreview({ buildRequest, provider }: RequestPreviewProps) 
     }
   }, [buildRequest])
 
+  // When entering edit mode, initialize with current body (or override)
+  const enterEditMode = useCallback(() => {
+    if (bodyOverride !== null) {
+      setEditValue(bodyOverride)
+    } else if (request) {
+      setEditValue(JSON.stringify(request.body, null, 2))
+    }
+    setJsonError(null)
+    setIsEditing(true)
+  }, [request, bodyOverride])
+
+  // Validate and apply edits
+  const applyEdit = useCallback(() => {
+    try {
+      JSON.parse(editValue)
+      setBodyOverride(editValue)
+      setJsonError(null)
+      setIsEditing(false)
+    } catch (e) {
+      setJsonError(e instanceof Error ? e.message : 'Invalid JSON')
+    }
+  }, [editValue, setBodyOverride])
+
+  // Reset to auto-generated body
+  const resetBody = useCallback(() => {
+    setBodyOverride(null)
+    setIsEditing(false)
+    setJsonError(null)
+  }, [setBodyOverride])
+
+  // Sync editValue when bodyOverride changes externally
+  useEffect(() => {
+    if (bodyOverride !== null && isEditing) {
+      setEditValue(bodyOverride)
+    }
+  }, [bodyOverride, isEditing])
+
   const handleCopyCurl = useCallback(async () => {
     if (!request) return
-    const curl = buildCurlCommand(request.url, request.headers, request.body)
+    const body = bodyOverride !== null ? JSON.parse(bodyOverride) : request.body
+    const curl = buildCurlCommand(request.url, request.headers, body)
     await navigator.clipboard.writeText(curl)
     setCurlCopied(true)
     setTimeout(() => setCurlCopied(false), 2000)
-  }, [request])
+  }, [request, bodyOverride])
 
   if (!request) {
     return (
@@ -69,6 +118,7 @@ export function RequestPreview({ buildRequest, provider }: RequestPreviewProps) 
   }
 
   const maskedHeaders = maskHeaders(request.headers)
+  const displayBody = bodyOverride !== null ? JSON.parse(bodyOverride) : request.body
 
   return (
     <div className="space-y-4">
@@ -96,8 +146,89 @@ export function RequestPreview({ buildRequest, provider }: RequestPreviewProps) 
 
       {/* Body */}
       <div className="space-y-1.5">
-        <h4 className="text-xs font-medium uppercase tracking-wider text-zinc-500">Body</h4>
-        <JsonViewer data={request.body} defaultExpanded={3} />
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-medium uppercase tracking-wider text-zinc-500">Body</h4>
+          <div className="flex gap-1">
+            {bodyOverride !== null && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[10px] text-amber-400 hover:text-amber-300"
+                onClick={resetBody}
+                title="Reset to auto-generated body"
+              >
+                <RotateCcw className="mr-1 size-3" />
+                Reset
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[10px] text-zinc-400 hover:text-zinc-200"
+              onClick={isEditing ? applyEdit : enterEditMode}
+            >
+              {isEditing ? (
+                <>
+                  <Check className="mr-1 size-3" />
+                  Apply
+                </>
+              ) : (
+                <>
+                  <Pencil className="mr-1 size-3" />
+                  Edit
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {bodyOverride !== null && !isEditing && (
+          <div className="rounded bg-amber-950/30 px-2 py-1 text-[10px] text-amber-400">
+            Custom body active — form changes won't apply until you Reset
+          </div>
+        )}
+
+        {isEditing ? (
+          <div className="space-y-2">
+            <Textarea
+              value={editValue}
+              onChange={(e) => {
+                setEditValue(e.target.value)
+                setJsonError(null)
+              }}
+              className="min-h-[300px] border-zinc-700 bg-zinc-950 font-mono text-xs text-zinc-200"
+              spellCheck={false}
+            />
+            {jsonError && (
+              <div className="rounded bg-red-950/50 px-2 py-1 text-xs text-red-400">
+                {jsonError}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                className="flex-1"
+                onClick={applyEdit}
+              >
+                <Check className="size-3" />
+                Apply Changes
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-zinc-700 text-zinc-400"
+                onClick={() => {
+                  setIsEditing(false)
+                  setJsonError(null)
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <JsonViewer data={displayBody} defaultExpanded={3} />
+        )}
       </div>
 
       {/* Copy as cURL */}
