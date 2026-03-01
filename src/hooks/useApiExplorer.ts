@@ -247,9 +247,8 @@ export function useApiExplorer() {
             if (block.type === 'text' && block.text) {
               parts.push(block.text)
             } else if (block.type === 'tool_use') {
-              const tb = block as { type: string; name?: string; input?: unknown }
-              const args = JSON.stringify(tb.input, null, 2)
-              parts.push(`Tool Call: ${tb.name}\n${args}`)
+              const args = JSON.stringify(block.input, null, 2)
+              parts.push(`Tool Call: ${block.name}\n${args}`)
             }
           }
           content = parts.join('\n\n')
@@ -412,8 +411,7 @@ export function useApiExplorer() {
         if (block.type === 'text' && block.text) {
           textParts.push(block.text)
         } else if (block.type === 'tool_use') {
-          const tb = block as { type: string; id: string; name: string; input: unknown }
-          toolUseBlocks.push({ id: tb.id, name: tb.name, input: tb.input })
+          toolUseBlocks.push({ id: block.id, name: block.name, input: block.input })
         }
       }
 

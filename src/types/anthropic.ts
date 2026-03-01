@@ -20,14 +20,27 @@ export interface AnthropicMessage {
   content: string | unknown[]
 }
 
+export interface AnthropicTextContentBlock {
+  type: 'text'
+  text: string
+}
+
+export interface AnthropicToolUseContentBlock {
+  type: 'tool_use'
+  id: string
+  name: string
+  input: unknown
+}
+
+export type AnthropicContentBlock =
+  | AnthropicTextContentBlock
+  | AnthropicToolUseContentBlock
+
 export interface AnthropicResponse {
   id: string
   type: string
   role: string
-  content: {
-    type: string
-    text: string
-  }[]
+  content: AnthropicContentBlock[]
   model: string
   stop_reason: string
   stop_sequence: string | null
