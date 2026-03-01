@@ -7,9 +7,23 @@ export interface ProviderConfig {
   model: string
 }
 
+export interface MessageToolCall {
+  id: string
+  function: {
+    name: string
+    arguments: string
+  }
+}
+
 export interface Message {
   role: string
   content: string
+  // OpenAI: assistant messages may carry tool_calls
+  tool_calls?: MessageToolCall[]
+  // OpenAI: tool-role messages must reference the call they answer
+  tool_call_id?: string
+  // Anthropic: assistant tool_use blocks
+  anthropic_tool_use?: { id: string; name: string; input: unknown }[]
 }
 
 export interface RequestParams {
@@ -21,6 +35,21 @@ export interface RequestParams {
   presencePenalty?: number    // OpenAI only
   topK?: number              // Anthropic only
   stop?: string[]
+}
+
+export interface ToolParameter {
+  name: string
+  type: string
+  description: string
+  required: boolean
+  enum?: string[]
+}
+
+export interface ToolDefinition {
+  name: string
+  description: string
+  parameters: ToolParameter[]
+  enabled: boolean
 }
 
 export interface SSEChunk {

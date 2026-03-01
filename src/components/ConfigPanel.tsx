@@ -1,5 +1,5 @@
-import { Send, Square } from 'lucide-react'
-import type { ProviderType, ProviderConfig, Message, RequestParams } from '@/types/provider'
+import { Send, Square, RotateCcw } from 'lucide-react'
+import type { ProviderType, ProviderConfig, RequestParams } from '@/types/provider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -8,32 +8,29 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { MessageEditor } from '@/components/MessageEditor'
 
 interface ConfigPanelProps {
   config: ProviderConfig
   setConfig: (config: ProviderConfig) => void
   setProvider: (provider: ProviderType) => void
-  messages: Message[]
-  setMessages: (messages: Message[]) => void
   params: RequestParams
   setParams: (params: RequestParams) => void
   isLoading: boolean
   onSend: () => void
   onAbort: () => void
+  onReset: () => void
 }
 
 export function ConfigPanel({
   config,
   setConfig,
   setProvider,
-  messages,
-  setMessages,
   params,
   setParams,
   isLoading,
   onSend,
   onAbort,
+  onReset,
 }: ConfigPanelProps) {
   const isOpenAI = config.provider === 'openai'
 
@@ -48,8 +45,8 @@ export function ConfigPanel({
   }
 
   return (
-    <div className="flex h-full flex-col bg-zinc-950">
-      <ScrollArea className="flex-1">
+    <div className="flex h-full flex-col overflow-hidden bg-zinc-950">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-4 p-4">
           {/* Provider Toggle */}
           <Tabs
@@ -229,22 +226,6 @@ export function ConfigPanel({
             </CardContent>
           </Card>
 
-          {/* Messages */}
-          <Card className="border-zinc-800 bg-zinc-900 py-4">
-            <CardHeader className="px-4 py-0">
-              <CardTitle className="text-xs font-medium uppercase tracking-wider text-zinc-400">
-                Messages
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4">
-              <MessageEditor
-                messages={messages}
-                setMessages={setMessages}
-                provider={config.provider}
-              />
-            </CardContent>
-          </Card>
-
           {/* Spacer so content doesn't hide behind the fixed action buttons */}
           <div className="h-20" />
         </div>
@@ -265,6 +246,17 @@ export function ConfigPanel({
             <Button variant="destructive" onClick={onAbort}>
               <Square className="size-4" />
               Abort
+            </Button>
+          )}
+          {!isLoading && (
+            <Button
+              variant="outline"
+              size="icon"
+              className="border-zinc-700 text-zinc-500 hover:text-zinc-200"
+              onClick={onReset}
+              title="Reset config & params"
+            >
+              <RotateCcw className="size-4" />
             </Button>
           )}
         </div>
