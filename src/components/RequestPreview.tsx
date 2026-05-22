@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { Check, Terminal, Pencil, RotateCcw } from 'lucide-react'
 import type { ProviderType } from '@/types/provider'
 import { Badge } from '@/components/ui/badge'
@@ -94,11 +94,10 @@ export function RequestPreview({
   }, [setBodyOverride])
 
   // Sync editValue when bodyOverride changes externally
-  useEffect(() => {
-    if (bodyOverride !== null && isEditing) {
-      setEditValue(bodyOverride)
-    }
-  }, [bodyOverride, isEditing])
+  const prevBodyOverride = bodyOverride
+  if (prevBodyOverride !== null && isEditing && editValue !== prevBodyOverride) {
+    setEditValue(prevBodyOverride)
+  }
 
   const handleCopyCurl = useCallback(async () => {
     if (!request) return
