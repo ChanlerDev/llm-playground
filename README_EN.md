@@ -18,8 +18,8 @@ A browser-based tool for testing LLM APIs. Supports OpenAI and Anthropic, with r
 ```bash
 git clone git@github.com:ChanlerDev/llm-playground.git
 cd llm-playground
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Open `http://localhost:5173`, enter your API key, and start testing.
