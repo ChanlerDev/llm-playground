@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { Terminal, PanelRightOpen, PanelRightClose } from 'lucide-react'
 import { useCanvasStore } from '@/hooks/useCanvasStore'
 import { useApiRequest } from '@/hooks/useApiRequest'
@@ -13,17 +13,53 @@ function App() {
 
   const [responseOpen, setResponseOpen] = useState(true)
   const [responseWidth, setResponseWidth] = useState(360)
+  const [loadingBlockId, setLoadingBlockId] = useState<string | null>(null)
+
+  // Track which block is being sent so we can auto-append response
+  const sendingBlockIdRef = useRef<string | null>(null)
 
   const isStreamMode = api.params.stream
   const isActivelyStreaming = api.params.stream && api.isLoading
 
-  // Send request using active block's messages
+  // Send request for a specific block
+  const handleBlockSend = useCallback(
+    (blockId: string) => {
+      const block = canvas.blocks.find((b) => b.id === blockId)
+      if (!block || !api.config.apiKey) return
+      canvas.setActiveBlock(blockId)
+      sendingBlockIdRef.current = blockId
+      setLoadingBlockId(blockId)
+      api.sendRequest(block.messages, block.systemPrompt)
+    },
+    [canvas, api],
+  )
+
+  // Auto-append response when loading finishes
+  const prevIsLoading = useRef(api.isLoading)
+  useEffect(() => {
+    // Detect transition: loading → not loading
+    if (prevIsLoading.current && !api.isLoading && sendingBlockIdRef.current) {
+      const blockId = sendingBlockIdRef.current
+      const block = canvas.blocks.find((b) => b.id === blockId)
+      if (block && !api.error) {
+        const responseMessages = api.getResponseMessages()
+        if (responseMessages.length > 0) {
+          canvas.setBlockMessages(blockId, [...block.messages, ...responseMessages])
+        }
+      }
+      sendingBlockIdRef.current = null
+      setLoadingBlockId(null)
+    }
+    prevIsLoading.current = api.isLoading
+  }, [api.isLoading, api.error, api, canvas])
+
+  // Send from ProviderFloat (uses active block)
   const handleSend = useCallback(() => {
     if (!canvas.activeBlock) return
-    api.sendRequest(canvas.activeBlock.messages, canvas.activeBlock.systemPrompt)
-  }, [canvas.activeBlock, api])
+    handleBlockSend(canvas.activeBlock.id)
+  }, [canvas.activeBlock, handleBlockSend])
 
-  // Add response to active block
+  // Manual add to messages (from response panel)
   const handleAddToMessages = useCallback(() => {
     if (!canvas.activeBlock) return
     const responseMessages = api.getResponseMessages()
@@ -41,15 +77,17 @@ function App() {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault()
         if (!api.isLoading && api.config.apiKey && canvas.activeBlock) {
-          handleSend()
+          handleBlockSend(canvas.activeBlock.id)
         }
       }
       if (e.key === 'Escape') {
         e.preventDefault()
         api.abort()
+        setLoadingBlockId(null)
+        sendingBlockIdRef.current = null
       }
     },
-    [api, canvas.activeBlock, handleSend],
+    [api, canvas.activeBlock, handleBlockSend],
   )
 
   useEffect(() => {
@@ -126,6 +164,7 @@ function App() {
             blocks={canvas.blocks}
             connections={canvas.connections}
             activeBlockId={canvas.activeBlock?.id ?? null}
+            loadingBlockId={loadingBlockId}
             onViewportChange={canvas.setViewport}
             onBlockMove={canvas.moveBlock}
             onBlockSelect={canvas.setActiveBlock}
@@ -134,6 +173,8 @@ function App() {
             onBlockDuplicate={canvas.duplicateBlock}
             onBlockMessagesChange={canvas.setBlockMessages}
             onBlockSystemPromptChange={canvas.setBlockSystemPrompt}
+            onBlockSend={handleBlockSend}
+            onAbort={api.abort}
             onAddBlock={canvas.addBlock}
             onAddConnection={canvas.addConnection}
             onDeleteConnection={canvas.deleteConnection}

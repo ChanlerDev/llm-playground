@@ -1,5 +1,5 @@
 import { useRef, useCallback, useState } from 'react'
-import { Copy, Trash2, GripVertical, ChevronDown, ChevronRight, Plus, Link } from 'lucide-react'
+import { Copy, Trash2, GripVertical, ChevronDown, ChevronRight, Plus, Link, Send, Square, Loader2 } from 'lucide-react'
 import type { MessagesBlock, Position } from '@/types/canvas'
 import type { Message } from '@/types/provider'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ const ROLE_COLORS: Record<string, string> = {
 interface CanvasBlockProps {
   block: MessagesBlock
   isActive: boolean
+  isLoading: boolean
   onSelect: () => void
   onMove: (position: Position) => void
   onUpdate: (patch: Partial<MessagesBlock>) => void
@@ -21,6 +22,8 @@ interface CanvasBlockProps {
   onDuplicate: () => void
   onMessagesChange: (messages: Message[]) => void
   onSystemPromptChange: (systemPrompt: string) => void
+  onSend: () => void
+  onAbort: () => void
   onDragStart: () => void
   onDragEnd: () => void
   onConnectionStart: () => void
@@ -31,6 +34,7 @@ interface CanvasBlockProps {
 export function CanvasBlock({
   block,
   isActive,
+  isLoading,
   onSelect,
   onMove,
   onUpdate,
@@ -38,6 +42,8 @@ export function CanvasBlock({
   onDuplicate,
   onMessagesChange,
   onSystemPromptChange,
+  onSend,
+  onAbort,
   onDragStart,
   onDragEnd,
   onConnectionStart,
@@ -315,18 +321,52 @@ export function CanvasBlock({
           ))}
 
           {/* Add message button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mt-1 w-full gap-1 text-muted"
-            onClick={(e) => {
-              e.stopPropagation()
-              addMessage()
-            }}
-          >
-            <Plus className="size-3" />
-            Add message
-          </Button>
+          <div className="mt-1 flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex-1 gap-1 text-muted"
+              onClick={(e) => {
+                e.stopPropagation()
+                addMessage()
+              }}
+            >
+              <Plus className="size-3" />
+              Add message
+            </Button>
+
+            {/* Send button */}
+            {isLoading ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1 border-semantic-error text-semantic-error"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onAbort()
+                }}
+              >
+                <Square className="size-3" />
+                Stop
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                className="gap-1"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onSend()
+                }}
+              >
+                {isLoading ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <Send className="size-3" />
+                )}
+                Send
+              </Button>
+            )}
+          </div>
         </div>
       )}
 

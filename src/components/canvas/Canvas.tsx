@@ -10,6 +10,7 @@ interface CanvasProps {
   blocks: MessagesBlock[]
   connections: Connection[]
   activeBlockId: string | null
+  loadingBlockId: string | null
   onViewportChange: (viewport: Viewport) => void
   onBlockMove: (id: string, position: Position) => void
   onBlockSelect: (id: string) => void
@@ -18,6 +19,8 @@ interface CanvasProps {
   onBlockDuplicate: (id: string) => void
   onBlockMessagesChange: (blockId: string, messages: Message[]) => void
   onBlockSystemPromptChange: (blockId: string, systemPrompt: string) => void
+  onBlockSend: (blockId: string) => void
+  onAbort: () => void
   onAddBlock: (position: Position) => void
   onAddConnection: (fromId: string, toId: string, label?: string) => void
   onDeleteConnection: (id: string) => void
@@ -34,6 +37,7 @@ export function Canvas({
   blocks,
   connections,
   activeBlockId,
+  loadingBlockId,
   onViewportChange,
   onBlockMove,
   onBlockSelect,
@@ -42,6 +46,8 @@ export function Canvas({
   onBlockDuplicate,
   onBlockMessagesChange,
   onBlockSystemPromptChange,
+  onBlockSend,
+  onAbort,
   onAddBlock,
   onAddConnection,
   onDeleteConnection,
@@ -177,6 +183,7 @@ export function Canvas({
             key={block.id}
             block={block}
             isActive={block.id === activeBlockId}
+            isLoading={block.id === loadingBlockId}
             onSelect={() => onBlockSelect(block.id)}
             onMove={(pos) => onBlockMove(block.id, pos)}
             onUpdate={(patch) => onBlockUpdate(block.id, patch)}
@@ -184,6 +191,8 @@ export function Canvas({
             onDuplicate={() => onBlockDuplicate(block.id)}
             onMessagesChange={(msgs) => onBlockMessagesChange(block.id, msgs)}
             onSystemPromptChange={(sp) => onBlockSystemPromptChange(block.id, sp)}
+            onSend={() => onBlockSend(block.id)}
+            onAbort={onAbort}
             onDragStart={handleBlockDragStart}
             onDragEnd={handleBlockDragEnd}
             onConnectionStart={() => handleConnectionStart(block.id)}
