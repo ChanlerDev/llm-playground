@@ -114,15 +114,13 @@ export function useApiExplorer() {
     saveJson(STORAGE_KEY_TOOLS, tools)
   }, [tools])
 
-  const DEFAULT_PARAMS: RequestParams = {
-    temperature: 1,
-    maxTokens: 1024,
-    topP: 1,
-    stream: true,
-  }
-
   const [params, setParams] = useState<RequestParams>(() => {
-    return loadJson<RequestParams>(STORAGE_KEY_PARAMS) ?? DEFAULT_PARAMS
+    return loadJson<RequestParams>(STORAGE_KEY_PARAMS) ?? {
+      temperature: 1,
+      maxTokens: 1024,
+      topP: 1,
+      stream: true,
+    }
   })
 
   useEffect(() => {
@@ -487,7 +485,7 @@ export function useApiExplorer() {
       apiKey: '',
       model: defaults.model,
     })
-    setParams(DEFAULT_PARAMS)
+    setParams({ temperature: 1, maxTokens: 1024, topP: 1, stream: true })
   }, [config.provider])
 
   return {

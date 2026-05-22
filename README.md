@@ -18,8 +18,8 @@
 ```bash
 git clone git@github.com:ChanlerDev/llm-playground.git
 cd llm-playground
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 打开 `http://localhost:5173`，填入 API Key 即可使用。

@@ -1,67 +1,93 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Terminal, Trash2 } from 'lucide-react'
-import { useApiExplorer } from '@/hooks/useApiExplorer'
-import { ConfigPanel } from '@/components/ConfigPanel'
-import { MessageEditor } from '@/components/MessageEditor'
-import { ToolsEditor } from '@/components/ToolsEditor'
-import { RequestPreview } from '@/components/RequestPreview'
-import { SchemaTree } from '@/components/SchemaTree'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { Terminal, PanelRightOpen, PanelRightClose } from 'lucide-react'
+import { useCanvasStore } from '@/hooks/useCanvasStore'
+import { useApiRequest } from '@/hooks/useApiRequest'
+import { Canvas, ProviderFloat } from '@/components/canvas'
 import { ResponsePanel } from '@/components/ResponsePanel'
 import { StatsDashboard } from '@/components/StatsDashboard'
-import { Timeline } from '@/components/Timeline'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 
 function App() {
-  const {
-    config,
-    setConfig,
-    setProvider,
-    systemPrompt,
-    setSystemPrompt,
-    messages,
-    setMessages,
-    tools,
-    setTools,
-    params,
-    setParams,
-    buildRequest,
-    sendRequest,
-    abort,
-    isLoading,
-    error,
-    responseBody,
-    assembledContent,
-    chunks,
-    stats,
-    bodyOverride,
-    setBodyOverride,
-    addResponseToMessages,
-    clearMessages,
-    clearResponse,
-    resetConfig,
-  } = useApiExplorer()
+  const canvas = useCanvasStore()
+  const api = useApiRequest()
 
-  const [_selectedChunkId, setSelectedChunkId] = useState<string | null>(null)
+  const [responseOpen, setResponseOpen] = useState(true)
+  const [responseWidth, setResponseWidth] = useState(360)
+  const [loadingBlockId, setLoadingBlockId] = useState<string | null>(null)
 
-  const isStreamMode = params.stream
-  const isActivelyStreaming = params.stream && isLoading
+  // Track which block is being sent so we can auto-append response
+  const sendingBlockIdRef = useRef<string | null>(null)
 
+  const isStreamMode = api.params.stream
+  const isActivelyStreaming = api.params.stream && api.isLoading
+
+  // Send request for a specific block
+  const handleBlockSend = useCallback(
+    (blockId: string) => {
+      const block = canvas.blocks.find((b) => b.id === blockId)
+      if (!block || !api.config.apiKey) return
+      canvas.setActiveBlock(blockId)
+      sendingBlockIdRef.current = blockId
+      setLoadingBlockId(blockId)
+      api.sendRequest(block.messages, block.systemPrompt)
+    },
+    [canvas, api],
+  )
+
+  // Auto-append response when loading finishes
+  const prevIsLoading = useRef(api.isLoading)
+  useEffect(() => {
+    // Detect transition: loading → not loading
+    if (prevIsLoading.current && !api.isLoading && sendingBlockIdRef.current) {
+      const blockId = sendingBlockIdRef.current
+      const block = canvas.blocks.find((b) => b.id === blockId)
+      if (block && !api.error) {
+        const responseMessages = api.getResponseMessages()
+        if (responseMessages.length > 0) {
+          canvas.setBlockMessages(blockId, [...block.messages, ...responseMessages])
+        }
+      }
+      sendingBlockIdRef.current = null
+      setLoadingBlockId(null)
+    }
+    prevIsLoading.current = api.isLoading
+  }, [api.isLoading, api.error, api, canvas])
+
+  // Send from ProviderFloat (uses active block)
+  const handleSend = useCallback(() => {
+    if (!canvas.activeBlock) return
+    handleBlockSend(canvas.activeBlock.id)
+  }, [canvas.activeBlock, handleBlockSend])
+
+  // Manual add to messages (from response panel)
+  const handleAddToMessages = useCallback(() => {
+    if (!canvas.activeBlock) return
+    const responseMessages = api.getResponseMessages()
+    if (responseMessages.length > 0) {
+      canvas.setBlockMessages(canvas.activeBlock.id, [
+        ...canvas.activeBlock.messages,
+        ...responseMessages,
+      ])
+    }
+  }, [canvas, api])
+
+  // Keyboard shortcuts
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault()
-        if (!isLoading && config.apiKey) {
-          sendRequest()
+        if (!api.isLoading && api.config.apiKey && canvas.activeBlock) {
+          handleBlockSend(canvas.activeBlock.id)
         }
       }
       if (e.key === 'Escape') {
         e.preventDefault()
-        abort()
+        api.abort()
+        setLoadingBlockId(null)
+        sendingBlockIdRef.current = null
       }
     },
-    [isLoading, config.apiKey, sendRequest, abort],
+    [api, canvas.activeBlock, handleBlockSend],
   )
 
   useEffect(() => {
@@ -69,162 +95,121 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
 
+  // Resize handle for response panel
+  const handleResizeStart = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault()
+      const startX = e.clientX
+      const startWidth = responseWidth
+
+      const onMove = (ev: PointerEvent) => {
+        const dx = startX - ev.clientX
+        setResponseWidth(Math.max(260, Math.min(600, startWidth + dx)))
+      }
+      const onUp = () => {
+        document.removeEventListener('pointermove', onMove)
+        document.removeEventListener('pointerup', onUp)
+      }
+      document.addEventListener('pointermove', onMove)
+      document.addEventListener('pointerup', onUp)
+    },
+    [responseWidth],
+  )
+
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-canvas text-ink">
       {/* Header */}
-      <header className="flex h-16 shrink-0 items-center justify-between border-b border-hairline bg-canvas px-6">
-        <div className="flex items-center gap-3">
-          <Terminal className="size-5 text-muted" />
-          <h1 className="text-title-sm">LLM API Explorer</h1>
+      <header className="flex h-12 shrink-0 items-center justify-between border-b border-hairline bg-canvas px-4">
+        <div className="flex items-center gap-2">
+          <Terminal className="size-4 text-muted" />
+          <h1 className="text-body-sm font-semibold">LLM Canvas</h1>
         </div>
-        <StatsDashboard stats={stats} isLoading={isLoading} />
+        <div className="flex items-center gap-3">
+          <StatsDashboard stats={api.stats} isLoading={api.isLoading} />
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={() => setResponseOpen(!responseOpen)}
+            title={responseOpen ? 'Close response panel' : 'Open response panel'}
+          >
+            {responseOpen ? (
+              <PanelRightClose className="size-4 text-muted" />
+            ) : (
+              <PanelRightOpen className="size-4 text-muted" />
+            )}
+          </Button>
+        </div>
       </header>
 
-      {/* Main 3-column grid */}
-      <main className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[280px_1fr_1fr]">
-        {/* Left: Config */}
-        <div className="hidden overflow-hidden border-r border-hairline lg:block">
-          <ConfigPanel
-            config={config}
-            setConfig={setConfig}
-            setProvider={setProvider}
-            params={params}
-            setParams={setParams}
-            isLoading={isLoading}
-            onSend={sendRequest}
-            onAbort={abort}
-            onReset={resetConfig}
+      {/* Main area */}
+      <main className="flex min-h-0 flex-1">
+        {/* Canvas */}
+        <div className="relative min-h-0 flex-1">
+          {/* Provider float */}
+          <ProviderFloat
+            config={api.config}
+            setConfig={api.setConfig}
+            setProvider={api.setProvider}
+            params={api.params}
+            setParams={api.setParams}
+            isLoading={api.isLoading}
+            activeBlockTitle={canvas.activeBlock?.title ?? null}
+            onSend={handleSend}
+            onAbort={api.abort}
+          />
+
+          {/* Canvas */}
+          <Canvas
+            viewport={canvas.viewport}
+            blocks={canvas.blocks}
+            connections={canvas.connections}
+            activeBlockId={canvas.activeBlock?.id ?? null}
+            loadingBlockId={loadingBlockId}
+            onViewportChange={canvas.setViewport}
+            onBlockMove={canvas.moveBlock}
+            onBlockSelect={canvas.setActiveBlock}
+            onBlockUpdate={canvas.updateBlock}
+            onBlockDelete={canvas.deleteBlock}
+            onBlockDuplicate={canvas.duplicateBlock}
+            onBlockMessagesChange={canvas.setBlockMessages}
+            onBlockSystemPromptChange={canvas.setBlockSystemPrompt}
+            onBlockSend={handleBlockSend}
+            onAbort={api.abort}
+            onAddBlock={canvas.addBlock}
+            onAddConnection={canvas.addConnection}
+            onDeleteConnection={canvas.deleteConnection}
+            onUpdateConnection={canvas.updateConnection}
           />
         </div>
 
-        {/* Mobile config */}
-        <div className="border-b border-hairline lg:hidden">
-          <details className="group">
-            <summary className="flex cursor-pointer items-center gap-2 px-6 py-3 text-body-sm hover:bg-canvas-soft">
-              <Terminal className="size-4 text-muted" />
-              Configuration
-              <span className="ml-auto text-caption group-open:hidden">expand</span>
-            </summary>
-            <div className="max-h-[60vh] overflow-y-auto">
-              <ConfigPanel
-                config={config}
-                setConfig={setConfig}
-                setProvider={setProvider}
-                params={params}
-                setParams={setParams}
-                isLoading={isLoading}
-                onSend={sendRequest}
-                onAbort={abort}
-                onReset={resetConfig}
+        {/* Response panel */}
+        {responseOpen && (
+          <>
+            {/* Resize handle */}
+            <div
+              className="w-1 cursor-col-resize bg-hairline hover:bg-primary/30 active:bg-primary/50"
+              onPointerDown={handleResizeStart}
+            />
+
+            <div
+              className="min-h-0 shrink-0 overflow-hidden border-l border-hairline"
+              style={{ width: responseWidth }}
+            >
+              <ResponsePanel
+                isLoading={api.isLoading}
+                error={api.error}
+                responseBody={api.responseBody}
+                assembledContent={api.assembledContent}
+                chunks={api.chunks}
+                isStreamMode={isStreamMode}
+                isActivelyStreaming={isActivelyStreaming}
+                onAddToMessages={handleAddToMessages}
+                onClear={api.clearResponse}
               />
             </div>
-          </details>
-        </div>
-
-        {/* Center: Messages + Preview + Schema */}
-        <div className="flex min-h-0 flex-col border-r border-hairline">
-          <Tabs defaultValue="messages" className="flex min-h-0 flex-1 flex-col">
-            <div className="flex h-10 shrink-0 items-center justify-between border-b border-hairline px-4">
-              <TabsList variant="line" className="h-10">
-                <TabsTrigger value="messages" className="text-sm">
-                  Messages
-                  <span className="ml-1.5 text-[11px] text-muted">({messages.length})</span>
-                </TabsTrigger>
-                <TabsTrigger value="tools" className="text-sm">
-                  Tools
-                  {tools.length > 0 && (
-                    <span className="ml-1.5 text-[11px] text-muted">
-                      ({tools.filter((t) => t.enabled).length}/{tools.length})
-                    </span>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="preview" className="text-sm">
-                  Preview
-                </TabsTrigger>
-                <TabsTrigger value="schema" className="text-sm">
-                  Schema
-                </TabsTrigger>
-              </TabsList>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                className="text-muted hover:text-semantic-error"
-                onClick={clearMessages}
-                title="Clear messages"
-              >
-                <Trash2 className="size-3.5" />
-              </Button>
-            </div>
-
-            <TabsContent value="messages" className="min-h-0 flex-1">
-              <ScrollArea className="h-full">
-                <div className="p-4">
-                  <MessageEditor
-                    systemPrompt={systemPrompt}
-                    setSystemPrompt={setSystemPrompt}
-                    messages={messages}
-                    setMessages={setMessages}
-                    provider={config.provider}
-                  />
-                </div>
-              </ScrollArea>
-            </TabsContent>
-
-            <TabsContent value="tools" className="min-h-0 flex-1">
-              <ScrollArea className="h-full">
-                <div className="p-4">
-                  <ToolsEditor tools={tools} setTools={setTools} />
-                </div>
-              </ScrollArea>
-            </TabsContent>
-
-            <TabsContent value="preview" className="min-h-0 flex-1">
-              <ScrollArea className="h-full">
-                <div className="p-4">
-                  <RequestPreview
-                    buildRequest={buildRequest}
-                    provider={config.provider}
-                    bodyOverride={bodyOverride}
-                    setBodyOverride={setBodyOverride}
-                  />
-                </div>
-              </ScrollArea>
-            </TabsContent>
-
-            <TabsContent value="schema" className="min-h-0 flex-1">
-              <ScrollArea className="h-full">
-                <div className="p-4">
-                  <SchemaTree provider={config.provider} />
-                </div>
-              </ScrollArea>
-            </TabsContent>
-          </Tabs>
-        </div>
-
-        {/* Right: Response */}
-        <div className="min-h-0 overflow-hidden">
-          <ResponsePanel
-            isLoading={isLoading}
-            error={error}
-            responseBody={responseBody}
-            assembledContent={assembledContent}
-            chunks={chunks}
-            isStreamMode={isStreamMode}
-            isActivelyStreaming={isActivelyStreaming}
-            onAddToMessages={addResponseToMessages}
-            onClear={clearResponse}
-          />
-        </div>
+          </>
+        )}
       </main>
-
-      {/* Bottom: Timeline */}
-      <div className="shrink-0 border-t border-hairline bg-canvas px-6 py-2">
-        <Timeline
-          chunks={chunks}
-          totalDuration={stats.totalDuration}
-          onChunkSelect={setSelectedChunkId}
-        />
-      </div>
     </div>
   )
 }
