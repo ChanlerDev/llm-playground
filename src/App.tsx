@@ -45,11 +45,9 @@ function App() {
 
   const [_selectedChunkId, setSelectedChunkId] = useState<string | null>(null)
 
-  // Track whether current/last request was streaming mode
   const isStreamMode = params.stream
   const isActivelyStreaming = params.stream && isLoading
 
-  // Keyboard shortcuts: Ctrl/Cmd+Enter to send, Escape to abort
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -72,22 +70,20 @@ function App() {
   }, [handleKeyDown])
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-zinc-950 text-zinc-100">
-      {/* ── Header ── */}
-      <header className="flex shrink-0 items-center justify-between border-b border-zinc-800 bg-zinc-900 px-4 py-2">
-        <div className="flex items-center gap-2">
-          <Terminal className="size-5 text-zinc-400" />
-          <h1 className="text-base font-semibold tracking-tight text-zinc-100">
-            LLM API Explorer
-          </h1>
+    <div className="flex h-screen flex-col overflow-hidden bg-canvas text-ink">
+      {/* Header */}
+      <header className="flex h-16 shrink-0 items-center justify-between border-b border-hairline bg-canvas px-6">
+        <div className="flex items-center gap-3">
+          <Terminal className="size-5 text-muted" />
+          <h1 className="text-title-sm">LLM API Explorer</h1>
         </div>
         <StatsDashboard stats={stats} isLoading={isLoading} />
       </header>
 
-      {/* ── Main 3-column grid ── */}
+      {/* Main 3-column grid */}
       <main className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[280px_1fr_1fr]">
-        {/* Left column: ConfigPanel */}
-        <div className="hidden overflow-hidden border-r border-zinc-800 lg:block">
+        {/* Left: Config */}
+        <div className="hidden overflow-hidden border-r border-hairline lg:block">
           <ConfigPanel
             config={config}
             setConfig={setConfig}
@@ -101,13 +97,13 @@ function App() {
           />
         </div>
 
-        {/* Mobile config: show as a collapsible section on small screens */}
-        <div className="border-b border-zinc-800 lg:hidden">
+        {/* Mobile config */}
+        <div className="border-b border-hairline lg:hidden">
           <details className="group">
-            <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-medium text-zinc-300 hover:bg-zinc-900">
-              <Terminal className="size-4 text-zinc-500" />
+            <summary className="flex cursor-pointer items-center gap-2 px-6 py-3 text-body-sm hover:bg-canvas-soft">
+              <Terminal className="size-4 text-muted" />
               Configuration
-              <span className="ml-auto text-xs text-zinc-500 group-open:hidden">tap to expand</span>
+              <span className="ml-auto text-caption group-open:hidden">expand</span>
             </summary>
             <div className="max-h-[60vh] overflow-y-auto">
               <ConfigPanel
@@ -125,34 +121,34 @@ function App() {
           </details>
         </div>
 
-        {/* Center column: Messages + RequestPreview + SchemaTree */}
-        <div className="flex min-h-0 flex-col border-r border-zinc-800">
+        {/* Center: Messages + Preview + Schema */}
+        <div className="flex min-h-0 flex-col border-r border-hairline">
           <Tabs defaultValue="messages" className="flex min-h-0 flex-1 flex-col">
-            <div className="flex shrink-0 items-center justify-between border-b border-zinc-800 px-4">
-              <TabsList variant="line" className="h-9">
-                <TabsTrigger value="messages" className="text-xs">
+            <div className="flex h-10 shrink-0 items-center justify-between border-b border-hairline px-4">
+              <TabsList variant="line" className="h-10">
+                <TabsTrigger value="messages" className="text-sm">
                   Messages
-                  <span className="ml-1.5 text-[10px] text-zinc-500">({messages.length})</span>
+                  <span className="ml-1.5 text-[11px] text-muted">({messages.length})</span>
                 </TabsTrigger>
-                <TabsTrigger value="tools" className="text-xs">
+                <TabsTrigger value="tools" className="text-sm">
                   Tools
                   {tools.length > 0 && (
-                    <span className="ml-1.5 text-[10px] text-zinc-500">
+                    <span className="ml-1.5 text-[11px] text-muted">
                       ({tools.filter((t) => t.enabled).length}/{tools.length})
                     </span>
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="preview" className="text-xs">
+                <TabsTrigger value="preview" className="text-sm">
                   Preview
                 </TabsTrigger>
-                <TabsTrigger value="schema" className="text-xs">
+                <TabsTrigger value="schema" className="text-sm">
                   Schema
                 </TabsTrigger>
               </TabsList>
               <Button
                 variant="ghost"
                 size="icon-xs"
-                className="text-zinc-500 hover:text-red-400"
+                className="text-muted hover:text-semantic-error"
                 onClick={clearMessages}
                 title="Clear messages"
               >
@@ -177,10 +173,7 @@ function App() {
             <TabsContent value="tools" className="min-h-0 flex-1">
               <ScrollArea className="h-full">
                 <div className="p-4">
-                  <ToolsEditor
-                    tools={tools}
-                    setTools={setTools}
-                  />
+                  <ToolsEditor tools={tools} setTools={setTools} />
                 </div>
               </ScrollArea>
             </TabsContent>
@@ -208,7 +201,7 @@ function App() {
           </Tabs>
         </div>
 
-        {/* Right column: ResponsePanel */}
+        {/* Right: Response */}
         <div className="min-h-0 overflow-hidden">
           <ResponsePanel
             isLoading={isLoading}
@@ -224,8 +217,8 @@ function App() {
         </div>
       </main>
 
-      {/* ── Bottom bar: Timeline ── */}
-      <div className="shrink-0 border-t border-zinc-800 bg-zinc-900/50 p-2">
+      {/* Bottom: Timeline */}
+      <div className="shrink-0 border-t border-hairline bg-canvas px-6 py-2">
         <Timeline
           chunks={chunks}
           totalDuration={stats.totalDuration}

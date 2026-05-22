@@ -32,19 +32,19 @@ function ParameterRow({
   onRemove: () => void
 }) {
   return (
-    <div className="flex items-start gap-2 rounded-md border border-zinc-800 bg-zinc-950 p-2">
+    <div className="flex items-start gap-2 rounded-md border border-hairline bg-canvas p-2">
       <div className="grid min-w-0 flex-1 grid-cols-[1fr_100px] gap-2">
         <Input
           value={param.name}
           onChange={(e) => onChange({ ...param, name: e.target.value })}
           placeholder="param_name"
-          className="h-7 border-zinc-700 bg-zinc-900 font-mono text-xs"
+          className="h-7 border-hairline bg-surface-card font-mono text-xs"
         />
         <Select
           value={param.type}
           onValueChange={(v) => onChange({ ...param, type: v })}
         >
-          <SelectTrigger className="h-7 border-zinc-700 bg-zinc-900 text-xs">
+          <SelectTrigger className="h-7 border-hairline bg-surface-card text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -59,7 +59,7 @@ function ParameterRow({
           value={param.description}
           onChange={(e) => onChange({ ...param, description: e.target.value })}
           placeholder="Description"
-          className="col-span-2 h-7 border-zinc-700 bg-zinc-900 text-xs"
+          className="col-span-2 h-7 border-hairline bg-surface-card text-xs"
         />
         <div className="col-span-2 flex items-center gap-3">
           <div className="flex items-center gap-1.5">
@@ -70,7 +70,7 @@ function ParameterRow({
               }
               className="scale-75"
             />
-            <span className="text-[10px] text-zinc-500">Required</span>
+            <span className="text-[10px] text-muted">Required</span>
           </div>
           <Input
             value={param.enum?.join(', ') ?? ''}
@@ -82,14 +82,14 @@ function ParameterRow({
               })
             }}
             placeholder="Enum: val1, val2, ..."
-            className="h-7 flex-1 border-zinc-700 bg-zinc-900 text-xs"
+            className="h-7 flex-1 border-hairline bg-surface-card text-xs"
           />
         </div>
       </div>
       <Button
         variant="ghost"
         size="sm"
-        className="mt-0.5 size-7 shrink-0 p-0 text-zinc-500 hover:text-red-400"
+        className="mt-0.5 size-7 shrink-0 p-0 text-muted hover:text-semantic-error"
         onClick={onRemove}
       >
         <Trash2 className="size-3" />
@@ -130,19 +130,19 @@ function ToolCard({
   }
 
   return (
-    <div className={`rounded-lg border bg-zinc-900 ${tool.enabled ? 'border-zinc-800' : 'border-zinc-800/50 opacity-60'}`}>
+    <div className={`rounded-lg border bg-surface-card ${tool.enabled ? 'border-hairline' : 'border-hairline/50 opacity-60'}`}>
       {/* Tool header */}
       <div className="flex items-center gap-2 px-3 py-2">
         <input
           type="checkbox"
           checked={tool.enabled}
           onChange={(e) => onChange({ ...tool, enabled: e.target.checked })}
-          className="size-3.5 shrink-0 cursor-pointer rounded border-zinc-600 bg-zinc-800 accent-emerald-500"
+          className="size-3.5 shrink-0 cursor-pointer rounded border-hairline-strong bg-surface-strong accent-primary"
           title={tool.enabled ? 'Enabled — will be sent in request' : 'Disabled — will not be sent'}
         />
         <button
           onClick={() => setExpanded(!expanded)}
-          className="shrink-0 text-zinc-400 hover:text-zinc-200"
+          className="shrink-0 text-muted hover:text-ink"
         >
           {expanded ? (
             <ChevronDown className="size-3.5" />
@@ -154,15 +154,15 @@ function ToolCard({
           value={tool.name}
           onChange={(e) => onChange({ ...tool, name: e.target.value })}
           placeholder="function_name"
-          className="h-7 border-zinc-700 bg-zinc-950 font-mono text-xs"
+          className="h-7 border-hairline bg-canvas font-mono text-xs"
         />
-        <Badge variant="outline" className="shrink-0 text-[10px] text-zinc-500">
+        <Badge variant="outline" className="shrink-0 text-[10px] text-muted">
           {tool.parameters.length} params
         </Badge>
         <Button
           variant="ghost"
           size="sm"
-          className="size-7 shrink-0 p-0 text-zinc-500 hover:text-red-400"
+          className="size-7 shrink-0 p-0 text-muted hover:text-semantic-error"
           onClick={onRemove}
         >
           <Trash2 className="size-3.5" />
@@ -171,28 +171,28 @@ function ToolCard({
 
       {/* Expanded body */}
       {expanded && (
-        <div className="space-y-3 border-t border-zinc-800 px-3 py-3">
+        <div className="space-y-3 border-t border-hairline px-3 py-3">
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wider text-zinc-500">
+            <Label className="text-[10px] uppercase tracking-wider text-muted">
               Description
             </Label>
             <Textarea
               value={tool.description}
               onChange={(e) => onChange({ ...tool, description: e.target.value })}
               placeholder="What does this tool do?"
-              className="min-h-[60px] border-zinc-700 bg-zinc-950 text-xs"
+              className="min-h-[60px] border-hairline bg-canvas text-xs"
             />
           </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-[10px] uppercase tracking-wider text-zinc-500">
+              <Label className="text-[10px] uppercase tracking-wider text-muted">
                 Parameters
               </Label>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 px-2 text-[10px] text-zinc-400 hover:text-zinc-200"
+                className="h-6 px-2 text-[10px] text-muted hover:text-ink"
                 onClick={addParam}
               >
                 <Plus className="mr-1 size-3" />
@@ -201,7 +201,7 @@ function ToolCard({
             </div>
 
             {tool.parameters.length === 0 ? (
-              <p className="py-2 text-center text-xs text-zinc-600">
+              <p className="py-2 text-center text-xs text-muted-soft">
                 No parameters — click Add to define inputs
               </p>
             ) : (
@@ -249,10 +249,10 @@ export function ToolsEditor({ tools, setTools }: ToolsEditorProps) {
   return (
     <div className="space-y-3">
       {tools.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 py-8 text-zinc-500">
-          <GripVertical className="size-6 text-zinc-700" />
+        <div className="flex flex-col items-center justify-center gap-3 py-8 text-muted">
+          <GripVertical className="size-6 text-muted-soft" />
           <p className="text-sm">No tools defined</p>
-          <p className="max-w-[240px] text-center text-xs text-zinc-600">
+          <p className="max-w-[240px] text-center text-xs text-muted-soft">
             Add function tools that the model can call. Tools will be included in the request body.
           </p>
         </div>
@@ -272,7 +272,7 @@ export function ToolsEditor({ tools, setTools }: ToolsEditorProps) {
       <Button
         variant="outline"
         size="sm"
-        className="w-full border-zinc-700 text-xs text-zinc-400 hover:text-zinc-200"
+        className="w-full border-hairline text-xs text-muted hover:text-ink"
         onClick={addTool}
       >
         <Plus className="size-3.5" />

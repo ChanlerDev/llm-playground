@@ -111,7 +111,7 @@ export function RequestPreview({
 
   if (!request) {
     return (
-      <div className="flex items-center justify-center py-8 text-sm text-zinc-500">
+      <div className="flex items-center justify-center py-8 text-sm text-muted">
         Unable to build request preview.
       </div>
     )
@@ -124,21 +124,21 @@ export function RequestPreview({
     <div className="space-y-4">
       {/* URL Line */}
       <div className="flex items-center gap-2">
-        <Badge className="shrink-0 bg-green-600 text-white hover:bg-green-600">POST</Badge>
-        <code className="truncate text-sm text-zinc-300">{request.url}</code>
-        <Badge variant="outline" className="ml-auto shrink-0 text-[10px] text-zinc-400">
+        <Badge className="shrink-0 bg-semantic-success text-white hover:bg-semantic-success">POST</Badge>
+        <code className="truncate text-sm text-ink">{request.url}</code>
+        <Badge variant="outline" className="ml-auto shrink-0 text-[10px] text-muted">
           {provider}
         </Badge>
       </div>
 
       {/* Headers */}
       <div className="space-y-1.5">
-        <h4 className="text-xs font-medium uppercase tracking-wider text-zinc-500">Headers</h4>
-        <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 font-mono text-xs">
+        <h4 className="text-xs font-medium uppercase tracking-wider text-muted">Headers</h4>
+        <div className="rounded-lg border border-hairline bg-canvas p-3 font-mono text-xs">
           {Object.entries(maskedHeaders).map(([key, value]) => (
             <div key={key} className="flex gap-2">
-              <span className="text-zinc-400">{key}:</span>
-              <span className="text-zinc-300">{value}</span>
+              <span className="text-muted">{key}:</span>
+              <span className="text-ink">{value}</span>
             </div>
           ))}
         </div>
@@ -147,13 +147,13 @@ export function RequestPreview({
       {/* Body */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <h4 className="text-xs font-medium uppercase tracking-wider text-zinc-500">Body</h4>
+          <h4 className="text-xs font-medium uppercase tracking-wider text-muted">Body</h4>
           <div className="flex gap-1">
             {bodyOverride !== null && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 px-2 text-[10px] text-amber-400 hover:text-amber-300"
+                className="h-6 px-2 text-[10px] text-amber-600 hover:text-amber-700"
                 onClick={resetBody}
                 title="Reset to auto-generated body"
               >
@@ -164,7 +164,7 @@ export function RequestPreview({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 px-2 text-[10px] text-zinc-400 hover:text-zinc-200"
+              className="h-6 px-2 text-[10px] text-muted hover:text-ink"
               onClick={isEditing ? applyEdit : enterEditMode}
             >
               {isEditing ? (
@@ -183,7 +183,7 @@ export function RequestPreview({
         </div>
 
         {bodyOverride !== null && !isEditing && (
-          <div className="rounded bg-amber-950/30 px-2 py-1 text-[10px] text-amber-400">
+          <div className="rounded bg-amber-50 px-2 py-1 text-[10px] text-amber-600">
             Custom body active — form changes won't apply until you Reset
           </div>
         )}
@@ -196,11 +196,11 @@ export function RequestPreview({
                 setEditValue(e.target.value)
                 setJsonError(null)
               }}
-              className="min-h-[300px] border-zinc-700 bg-zinc-950 font-mono text-xs text-zinc-200"
+              className="min-h-[300px] border-hairline-strong bg-canvas font-mono text-xs text-ink"
               spellCheck={false}
             />
             {jsonError && (
-              <div className="rounded bg-red-950/50 px-2 py-1 text-xs text-red-400">
+              <div className="rounded bg-red-50 px-2 py-1 text-xs text-semantic-error">
                 {jsonError}
               </div>
             )}
@@ -216,7 +216,7 @@ export function RequestPreview({
               <Button
                 variant="outline"
                 size="sm"
-                className="border-zinc-700 text-zinc-400"
+                className="border-hairline-strong text-muted"
                 onClick={() => {
                   setIsEditing(false)
                   setJsonError(null)
@@ -235,7 +235,7 @@ export function RequestPreview({
       <Button
         variant="outline"
         size="sm"
-        className="w-full border-zinc-700 text-zinc-400 hover:text-zinc-200"
+        className="w-full border-hairline-strong text-muted hover:text-ink"
         onClick={handleCopyCurl}
       >
         {curlCopied ? (

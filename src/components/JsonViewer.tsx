@@ -18,11 +18,11 @@ export function JsonViewer({ data, defaultExpanded = 2 }: JsonViewerProps) {
   }, [data])
 
   return (
-    <div className="relative rounded-lg border border-zinc-800 bg-zinc-950 font-mono text-sm">
+    <div className="relative rounded-lg border border-hairline bg-canvas font-mono text-sm">
       <Button
         variant="ghost"
         size="icon-xs"
-        className="absolute right-2 top-2 text-zinc-500 hover:text-zinc-300"
+        className="absolute right-2 top-2 text-muted hover:text-ink"
         onClick={handleCopy}
       >
         {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
@@ -59,11 +59,11 @@ function JsonNode({
       <span>
         {keyName !== undefined && (
           <>
-            <span className="text-zinc-300">{`"${keyName}"`}</span>
-            <span className="text-zinc-500">: </span>
+            <span className="text-ink">{`"${keyName}"`}</span>
+            <span className="text-muted">: </span>
           </>
         )}
-        <span className="text-zinc-500">null</span>
+        <span className="text-muted">null</span>
         {comma}
       </span>
     )
@@ -75,8 +75,8 @@ function JsonNode({
       <span>
         {keyName !== undefined && (
           <>
-            <span className="text-zinc-300">{`"${keyName}"`}</span>
-            <span className="text-zinc-500">: </span>
+            <span className="text-ink">{`"${keyName}"`}</span>
+            <span className="text-muted">: </span>
           </>
         )}
         <PrimitiveValue value={data as string | number | boolean} />
@@ -102,11 +102,11 @@ function JsonNode({
       <span>
         {keyName !== undefined && (
           <>
-            <span className="text-zinc-300">{`"${keyName}"`}</span>
-            <span className="text-zinc-500">: </span>
+            <span className="text-ink">{`"${keyName}"`}</span>
+            <span className="text-muted">: </span>
           </>
         )}
-        <span className="text-zinc-500">
+        <span className="text-muted">
           {openBrace}{closeBrace}
         </span>
         {comma}
@@ -117,35 +117,35 @@ function JsonNode({
   return (
     <div>
       <span
-        className="cursor-pointer select-none hover:bg-zinc-800/50"
+        className="cursor-pointer select-none hover:bg-canvas-soft"
         onClick={() => setExpanded(!expanded)}
       >
         {expanded ? (
-          <ChevronDown className="inline size-3.5 text-zinc-500" />
+          <ChevronDown className="inline size-3.5 text-muted" />
         ) : (
-          <ChevronRight className="inline size-3.5 text-zinc-500" />
+          <ChevronRight className="inline size-3.5 text-muted" />
         )}
         {keyName !== undefined && (
           <>
-            <span className="text-zinc-300">{`"${keyName}"`}</span>
-            <span className="text-zinc-500">: </span>
+            <span className="text-ink">{`"${keyName}"`}</span>
+            <span className="text-muted">: </span>
           </>
         )}
-        <span className="text-zinc-500">{openBrace}</span>
+        <span className="text-muted">{openBrace}</span>
         {!expanded && (
           <>
-            <span className="text-zinc-600">
+            <span className="text-muted-soft">
               {' ...'}
             </span>
-            <span className="text-zinc-500">{closeBrace}</span>
-            <span className="ml-2 text-xs text-zinc-600">{countLabel}</span>
+            <span className="text-muted">{closeBrace}</span>
+            <span className="ml-2 text-xs text-muted-soft">{countLabel}</span>
             {comma}
           </>
         )}
       </span>
       {expanded && (
         <>
-          <div className={cn('ml-4 border-l border-zinc-800 pl-3')}>
+          <div className={cn('ml-4 border-l border-hairline pl-3')}>
             {entries.map(([key, value], index) => (
               <div key={key}>
                 <JsonNode
@@ -158,7 +158,7 @@ function JsonNode({
               </div>
             ))}
           </div>
-          <span className="text-zinc-500">
+          <span className="text-muted">
             {closeBrace}
           </span>
           {comma}
@@ -170,11 +170,11 @@ function JsonNode({
 
 function PrimitiveValue({ value }: { value: string | number | boolean }) {
   if (typeof value === 'string') {
-    return <span style={{ color: '#22c55e' }}>{`"${value}"`}</span>
+    return <span className="text-semantic-success">{`"${value}"`}</span>
   }
   if (typeof value === 'number') {
-    return <span style={{ color: '#3b82f6' }}>{String(value)}</span>
+    return <span className="text-blue-600">{String(value)}</span>
   }
   // boolean
-  return <span style={{ color: '#f59e0b' }}>{String(value)}</span>
+  return <span className="text-amber-600">{String(value)}</span>
 }

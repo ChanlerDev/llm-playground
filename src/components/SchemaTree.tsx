@@ -55,22 +55,22 @@ function SchemaFieldRow({ field, depth, defaultExpandDepth }: SchemaFieldRowProp
 
   if (!hasChildren) {
     return (
-      <div className="flex flex-col gap-0.5 rounded px-2 py-1.5 hover:bg-zinc-800/40">
+      <div className="flex flex-col gap-0.5 rounded px-2 py-1.5 hover:bg-canvas-soft">
         <div className="flex items-center gap-2">
           {/* Spacer to align with collapsible items */}
           <span className="inline-block w-4" />
-          <span className="font-mono font-semibold text-sm text-zinc-200">{field.name}</span>
-          {field.required && <span className="text-red-400 text-xs font-bold">*</span>}
+          <span className="font-mono font-semibold text-sm text-ink">{field.name}</span>
+          {field.required && <span className="text-semantic-error text-xs font-bold">*</span>}
           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
             {field.type}
           </Badge>
           {field.default !== undefined && (
-            <span className="text-xs text-zinc-500">= {field.default}</span>
+            <span className="text-xs text-muted">= {field.default}</span>
           )}
         </div>
-        <div className="ml-6 text-xs text-zinc-500 leading-relaxed">{field.description}</div>
+        <div className="ml-6 text-xs text-muted leading-relaxed">{field.description}</div>
         {field.providerNote && (
-          <div className="ml-6 text-[10px] text-amber-500/80">{field.providerNote}</div>
+          <div className="ml-6 text-[10px] text-amber-600">{field.providerNote}</div>
         )}
       </div>
     )
@@ -78,30 +78,30 @@ function SchemaFieldRow({ field, depth, defaultExpandDepth }: SchemaFieldRowProp
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <div className="rounded px-2 py-1.5 hover:bg-zinc-800/40">
+      <div className="rounded px-2 py-1.5 hover:bg-canvas-soft">
         <CollapsibleTrigger className="flex w-full items-center gap-2 text-left">
           {isOpen ? (
-            <ChevronDown className="size-4 shrink-0 text-zinc-500" />
+            <ChevronDown className="size-4 shrink-0 text-muted" />
           ) : (
-            <ChevronRight className="size-4 shrink-0 text-zinc-500" />
+            <ChevronRight className="size-4 shrink-0 text-muted" />
           )}
-          <span className="font-mono font-semibold text-sm text-zinc-200">{field.name}</span>
-          {field.required && <span className="text-red-400 text-xs font-bold">*</span>}
+          <span className="font-mono font-semibold text-sm text-ink">{field.name}</span>
+          {field.required && <span className="text-semantic-error text-xs font-bold">*</span>}
           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
             {field.type}
           </Badge>
           {field.default !== undefined && (
-            <span className="text-xs text-zinc-500">= {field.default}</span>
+            <span className="text-xs text-muted">= {field.default}</span>
           )}
         </CollapsibleTrigger>
-        <div className="ml-6 mt-0.5 text-xs text-zinc-500 leading-relaxed">{field.description}</div>
+        <div className="ml-6 mt-0.5 text-xs text-muted leading-relaxed">{field.description}</div>
         {field.providerNote && (
-          <div className="ml-6 text-[10px] text-amber-500/80">{field.providerNote}</div>
+          <div className="ml-6 text-[10px] text-amber-600">{field.providerNote}</div>
         )}
       </div>
 
       <CollapsibleContent>
-        <div className="ml-4 border-l border-zinc-800 pl-2">
+        <div className="ml-4 border-l border-hairline pl-2">
           {field.children!.map((child) => (
             <SchemaFieldRow
               key={child.name}

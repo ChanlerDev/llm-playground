@@ -22,12 +22,12 @@ interface ResponsePanelProps {
 
 function ErrorBanner({ error }: { error: string }) {
   return (
-    <div className="mx-4 mt-4 rounded-lg border border-red-900/50 bg-red-950/30 p-3">
+    <div className="mx-4 mt-3 rounded-lg border border-semantic-error/20 bg-surface-card p-3">
       <div className="flex items-start gap-2">
-        <AlertCircle className="mt-0.5 size-4 shrink-0 text-red-400" />
+        <AlertCircle className="mt-0.5 size-4 shrink-0 text-semantic-error" />
         <div className="min-w-0">
-          <p className="text-sm font-medium text-red-400">Request Error</p>
-          <p className="mt-1 break-all font-mono text-xs text-red-300/80">{error}</p>
+          <p className="text-sm font-medium text-semantic-error">Request Error</p>
+          <p className="mt-1 break-all font-mono text-xs text-body">{error}</p>
         </div>
       </div>
     </div>
@@ -37,8 +37,8 @@ function ErrorBanner({ error }: { error: string }) {
 function LoadingIndicator() {
   return (
     <div className="flex items-center gap-2 px-4 py-2">
-      <Loader2 className="size-3.5 animate-spin text-zinc-400" />
-      <span className="text-xs text-zinc-500">Loading...</span>
+      <Loader2 className="size-3.5 animate-spin text-primary" />
+      <span className="text-xs text-muted">Loading...</span>
     </div>
   )
 }
@@ -54,12 +54,10 @@ function ResponseTab({
   responseBody: unknown
   chunks: SSEChunk[]
 }) {
-  // Show StreamViewer if stream mode is on AND we have (or are receiving) chunks
   if (isStreamMode && (chunks.length > 0 || isActivelyStreaming)) {
     return <StreamViewer chunks={chunks} isStreaming={isActivelyStreaming} />
   }
 
-  // Non-streaming: show full JSON response
   if (responseBody != null) {
     return (
       <div className="p-4">
@@ -69,9 +67,9 @@ function ResponseTab({
   }
 
   return (
-    <div className="flex flex-col items-center justify-center gap-2 py-16 text-zinc-500">
-      <FileText className="size-5 text-zinc-600" />
-      <p className="text-sm">Response will appear here after sending a request</p>
+    <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted">
+      <FileText className="size-5" />
+      <p className="text-sm">Response will appear here</p>
     </div>
   )
 }
@@ -91,8 +89,8 @@ function ContentTab({
 
   if (!assembledContent && !isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 py-16 text-zinc-500">
-        <Code2 className="size-5 text-zinc-600" />
+      <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted">
+        <Code2 className="size-5" />
         <p className="text-sm">Assembled content will appear here</p>
       </div>
     )
@@ -107,17 +105,16 @@ function ContentTab({
 
   return (
     <div className="flex h-full flex-col">
-      {/* Add to Messages button */}
       {assembledContent && !isActivelyStreaming && onAddToMessages && (
-        <div className="shrink-0 border-b border-zinc-800 px-4 py-2">
+        <div className="shrink-0 border-b border-hairline px-4 py-2">
           <Button
             variant="outline"
             size="sm"
             className={cn(
-              'w-full border-zinc-700 text-xs',
+              'w-full rounded-md text-sm',
               added
-                ? 'border-green-700 text-green-400 hover:text-green-400'
-                : 'text-zinc-400 hover:text-zinc-200',
+                ? 'border-semantic-success/50 text-semantic-success'
+                : 'border-hairline-strong text-body hover:text-ink',
             )}
             onClick={handleAdd}
           >
@@ -137,11 +134,11 @@ function ContentTab({
       )}
 
       <ScrollArea className="min-h-0 flex-1">
-        <pre className="p-4 font-mono text-sm leading-relaxed text-zinc-200 whitespace-pre-wrap break-words">
+        <pre className="p-4 font-mono text-[13px] leading-relaxed text-ink whitespace-pre-wrap break-words">
           <code>
             {assembledContent}
             {isActivelyStreaming && (
-              <span className="inline-block h-4 w-1.5 animate-pulse bg-zinc-400 align-middle" />
+              <span className="inline-block h-4 w-0.5 animate-blink bg-primary align-middle" />
             )}
           </code>
         </pre>
@@ -153,8 +150,8 @@ function ContentTab({
 function RawSSETab({ chunks }: { chunks: SSEChunk[] }) {
   if (chunks.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 py-16 text-zinc-500">
-        <Radio className="size-5 text-zinc-600" />
+      <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted">
+        <Radio className="size-5" />
         <p className="text-sm">Raw SSE data will appear here</p>
       </div>
     )
@@ -164,13 +161,13 @@ function RawSSETab({ chunks }: { chunks: SSEChunk[] }) {
     <ScrollArea className="h-full">
       <div className="p-4">
         {chunks.map((chunk, i) => (
-          <div key={chunk.id} className="flex font-mono text-xs leading-5">
-            <span className="mr-3 w-8 shrink-0 select-none text-right text-zinc-600">
+          <div key={chunk.id} className="flex font-mono text-[13px] leading-5">
+            <span className="mr-3 w-8 shrink-0 select-none text-right text-muted-soft">
               {i + 1}
             </span>
             <span className={cn(
               'min-w-0 break-all',
-              chunk.deltaContent ? 'text-zinc-300' : 'text-zinc-500',
+              chunk.deltaContent ? 'text-ink' : 'text-muted',
             )}>
               {chunk.raw}
             </span>
@@ -195,30 +192,26 @@ export function ResponsePanel({
   const hasContent = responseBody != null || assembledContent || chunks.length > 0 || error
 
   return (
-    <div className="flex h-full flex-col bg-zinc-950">
-      {/* Error banner */}
+    <div className="flex h-full flex-col bg-canvas">
       {error && <ErrorBanner error={error} />}
-
-      {/* Loading indicator */}
       {isLoading && <LoadingIndicator />}
 
-      {/* Tabs */}
       <Tabs defaultValue="response" className="flex min-h-0 flex-1 flex-col">
-        <div className="flex shrink-0 items-center justify-between border-b border-zinc-800 px-4">
-          <TabsList variant="line" className="h-9">
-            <TabsTrigger value="response" className="text-xs">
+        <div className="flex h-10 shrink-0 items-center justify-between border-b border-hairline px-4">
+          <TabsList variant="line" className="h-10">
+            <TabsTrigger value="response" className="text-sm">
               Response
               {chunks.length > 0 && (
-                <span className="ml-1.5 text-[10px] text-zinc-500">({chunks.length})</span>
+                <span className="ml-1.5 text-[11px] text-muted">({chunks.length})</span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="content" className="text-xs">
+            <TabsTrigger value="content" className="text-sm">
               Content
             </TabsTrigger>
-            <TabsTrigger value="raw" className="text-xs">
+            <TabsTrigger value="raw" className="text-sm">
               Raw SSE
               {chunks.length > 0 && (
-                <span className="ml-1.5 text-[10px] text-zinc-500">({chunks.length})</span>
+                <span className="ml-1.5 text-[11px] text-muted">({chunks.length})</span>
               )}
             </TabsTrigger>
           </TabsList>
@@ -226,7 +219,7 @@ export function ResponsePanel({
             <Button
               variant="ghost"
               size="icon-xs"
-              className="text-zinc-500 hover:text-red-400"
+              className="text-muted hover:text-semantic-error"
               onClick={onClear}
               title="Clear response"
             >

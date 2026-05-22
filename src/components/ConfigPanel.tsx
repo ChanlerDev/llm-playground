@@ -3,7 +3,6 @@ import type { ProviderType, ProviderConfig, RequestParams } from '@/types/provid
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
@@ -33,7 +32,6 @@ export function ConfigPanel({
   onReset,
 }: ConfigPanelProps) {
   const isOpenAI = config.provider === 'openai'
-
   const tempMax = isOpenAI ? 2 : 1
 
   function updateConfig(patch: Partial<ProviderConfig>) {
@@ -45,9 +43,9 @@ export function ConfigPanel({
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-zinc-950">
+    <div className="flex h-full flex-col overflow-hidden bg-canvas-soft">
       <ScrollArea className="min-h-0 flex-1">
-        <div className="space-y-4 p-4">
+        <div className="space-y-6 p-4">
           {/* Provider Toggle */}
           <Tabs
             value={config.provider}
@@ -63,56 +61,48 @@ export function ConfigPanel({
             </TabsList>
           </Tabs>
 
-          {/* Connection Settings */}
-          <Card className="border-zinc-800 bg-zinc-900 py-4">
-            <CardHeader className="px-4 py-0">
-              <CardTitle className="text-xs font-medium uppercase tracking-wider text-zinc-400">
-                Connection
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 px-4">
+          {/* Connection */}
+          <section className="space-y-3">
+            <h3 className="text-caption-upper">Connection</h3>
+            <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label className="text-xs text-zinc-400">Base URL</Label>
+                <Label className="text-caption">Base URL</Label>
                 <Input
                   value={config.baseUrl}
                   onChange={(e) => updateConfig({ baseUrl: e.target.value })}
                   placeholder="https://api.openai.com"
-                  className="h-8 border-zinc-700 bg-zinc-800/50 text-sm"
+                  className="h-9 rounded-md border-hairline bg-surface-card text-sm text-ink"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-zinc-400">API Key</Label>
+                <Label className="text-caption">API Key</Label>
                 <Input
                   type="password"
                   value={config.apiKey}
                   onChange={(e) => updateConfig({ apiKey: e.target.value })}
                   placeholder="sk-..."
-                  className="h-8 border-zinc-700 bg-zinc-800/50 text-sm"
+                  className="h-9 rounded-md border-hairline bg-surface-card text-sm text-ink"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-zinc-400">Model</Label>
+                <Label className="text-caption">Model</Label>
                 <Input
                   value={config.model}
                   onChange={(e) => updateConfig({ model: e.target.value })}
                   placeholder={isOpenAI ? 'gpt-4o' : 'claude-sonnet-4-20250514'}
-                  className="h-8 border-zinc-700 bg-zinc-800/50 text-sm"
+                  className="h-9 rounded-md border-hairline bg-surface-card text-sm text-ink"
                 />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
           {/* Parameters */}
-          <Card className="border-zinc-800 bg-zinc-900 py-4">
-            <CardHeader className="px-4 py-0">
-              <CardTitle className="text-xs font-medium uppercase tracking-wider text-zinc-400">
-                Parameters
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 px-4">
-              {/* Stream Toggle */}
+          <section className="space-y-3">
+            <h3 className="text-caption-upper">Parameters</h3>
+            <div className="space-y-4">
+              {/* Stream */}
               <div className="flex items-center justify-between">
-                <Label className="text-sm text-zinc-300">Stream</Label>
+                <Label className="text-sm text-body">Stream</Label>
                 <Switch
                   checked={params.stream}
                   onCheckedChange={(checked) => updateParams({ stream: checked })}
@@ -122,8 +112,8 @@ export function ConfigPanel({
               {/* Temperature */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm text-zinc-300">Temperature</Label>
-                  <span className="font-mono text-xs text-zinc-400">
+                  <Label className="text-sm text-body">Temperature</Label>
+                  <span className="font-mono text-xs text-muted">
                     {params.temperature?.toFixed(2) ?? '1.00'}
                   </span>
                 </div>
@@ -138,7 +128,7 @@ export function ConfigPanel({
 
               {/* Max Tokens */}
               <div className="space-y-1.5">
-                <Label className="text-sm text-zinc-300">Max Tokens</Label>
+                <Label className="text-sm text-body">Max Tokens</Label>
                 <Input
                   type="number"
                   value={params.maxTokens ?? ''}
@@ -148,15 +138,15 @@ export function ConfigPanel({
                     })
                   }
                   placeholder="1024"
-                  className="h-8 border-zinc-700 bg-zinc-800/50 text-sm"
+                  className="h-9 rounded-md border-hairline bg-surface-card text-sm text-ink"
                 />
               </div>
 
               {/* Top P */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm text-zinc-300">Top P</Label>
-                  <span className="font-mono text-xs text-zinc-400">
+                  <Label className="text-sm text-body">Top P</Label>
+                  <span className="font-mono text-xs text-muted">
                     {params.topP?.toFixed(2) ?? '1.00'}
                   </span>
                 </div>
@@ -169,13 +159,13 @@ export function ConfigPanel({
                 />
               </div>
 
-              {/* OpenAI-only Parameters */}
+              {/* OpenAI-only */}
               {isOpenAI && (
                 <>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label className="text-sm text-zinc-300">Frequency Penalty</Label>
-                      <span className="font-mono text-xs text-zinc-400">
+                      <Label className="text-sm text-body">Frequency Penalty</Label>
+                      <span className="font-mono text-xs text-muted">
                         {(params.frequencyPenalty ?? 0).toFixed(2)}
                       </span>
                     </div>
@@ -190,8 +180,8 @@ export function ConfigPanel({
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label className="text-sm text-zinc-300">Presence Penalty</Label>
-                      <span className="font-mono text-xs text-zinc-400">
+                      <Label className="text-sm text-body">Presence Penalty</Label>
+                      <span className="font-mono text-xs text-muted">
                         {(params.presencePenalty ?? 0).toFixed(2)}
                       </span>
                     </div>
@@ -206,10 +196,10 @@ export function ConfigPanel({
                 </>
               )}
 
-              {/* Anthropic-only Parameters */}
+              {/* Anthropic-only */}
               {!isOpenAI && (
                 <div className="space-y-1.5">
-                  <Label className="text-sm text-zinc-300">Top K</Label>
+                  <Label className="text-sm text-body">Top K</Label>
                   <Input
                     type="number"
                     value={params.topK ?? ''}
@@ -219,44 +209,45 @@ export function ConfigPanel({
                       })
                     }
                     placeholder="Not set"
-                    className="h-8 border-zinc-700 bg-zinc-800/50 text-sm"
+                    className="h-9 rounded-md border-hairline bg-surface-card text-sm text-ink"
                   />
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
-          {/* Spacer so content doesn't hide behind the fixed action buttons */}
           <div className="h-20" />
         </div>
       </ScrollArea>
 
-      {/* Action Buttons — fixed at bottom */}
-      <div className="border-t border-zinc-800 bg-zinc-950 p-4">
+      {/* Action Buttons */}
+      <div className="border-t border-hairline bg-canvas-soft p-4">
         <div className="flex gap-2">
           <Button
-            className="flex-1"
+            className="flex-1 rounded-md bg-primary text-on-primary text-button hover:bg-primary-active active:scale-[0.97] transition-transform"
             disabled={!config.apiKey || isLoading}
             onClick={onSend}
           >
-            <Send className="size-4" />
+            <Send className="size-3.5" />
             Send Request
           </Button>
           {isLoading && (
-            <Button variant="destructive" onClick={onAbort}>
-              <Square className="size-4" />
-              Abort
+            <Button
+              className="rounded-md bg-semantic-error text-on-primary hover:bg-semantic-error/80"
+              onClick={onAbort}
+            >
+              <Square className="size-3.5" />
             </Button>
           )}
           {!isLoading && (
             <Button
               variant="outline"
               size="icon"
-              className="border-zinc-700 text-zinc-500 hover:text-zinc-200"
+              className="rounded-md border-hairline-strong text-muted hover:text-ink"
               onClick={onReset}
-              title="Reset config & params"
+              title="Reset"
             >
-              <RotateCcw className="size-4" />
+              <RotateCcw className="size-3.5" />
             </Button>
           )}
         </div>

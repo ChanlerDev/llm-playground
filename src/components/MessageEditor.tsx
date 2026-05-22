@@ -19,9 +19,9 @@ interface MessageEditorProps {
 }
 
 const ROLE_BORDER_COLORS: Record<string, string> = {
-  user: 'border-l-blue-500',
-  assistant: 'border-l-green-500',
-  tool: 'border-l-orange-500',
+  user: 'border-l-primary',
+  assistant: 'border-l-timeline-read',
+  tool: 'border-l-timeline-grep',
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -45,11 +45,11 @@ function ToolCallBadges({ message }: { message: Message }) {
       {allCalls.map((tc) => (
         <span
           key={tc.id}
-          className="inline-flex items-center gap-1 rounded bg-orange-950/50 px-1.5 py-0.5 font-mono text-[10px] text-orange-400 ring-1 ring-orange-800/50"
+          className="inline-flex items-center gap-1 rounded-full bg-surface-strong px-2 py-0.5 font-mono text-[10px] text-ink"
         >
           <Wrench className="size-2.5" />
           {tc.name}
-          <span className="text-orange-600">({tc.id.slice(-6)})</span>
+          <span className="text-muted">({tc.id.slice(-6)})</span>
         </span>
       ))}
     </div>
@@ -60,7 +60,7 @@ function ToolCallIdBadge({ toolCallId }: { toolCallId?: string }) {
   if (!toolCallId) return null
 
   return (
-    <span className="inline-flex items-center gap-1 rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-400 ring-1 ring-zinc-700">
+    <span className="inline-flex items-center gap-1 rounded-full bg-surface-strong px-2 py-0.5 font-mono text-[10px] text-muted">
       call_id: {toolCallId.slice(-8)}
     </span>
   )
@@ -79,7 +79,6 @@ export function MessageEditor({ systemPrompt, setSystemPrompt, messages, setMess
   function removeMessage(index: number) {
     const msg = messages[index]
 
-    // If removing an assistant message with tool_calls, also remove associated tool result messages
     if (msg.role === 'assistant') {
       const toolCallIds = new Set<string>()
       for (const tc of msg.tool_calls ?? []) {
@@ -106,26 +105,26 @@ export function MessageEditor({ systemPrompt, setSystemPrompt, messages, setMess
 
   return (
     <div className="space-y-3">
-      {/* Fixed system prompt at the top */}
-      <div className="rounded-lg border-l-[3px] border-l-purple-500 bg-zinc-800/50 p-3">
+      {/* System prompt */}
+      <div className="rounded-lg border border-hairline border-l-[3px] border-l-timeline-edit bg-surface-card p-3">
         <div className="mb-2 flex items-center gap-2">
-          <MessageSquare className="size-3.5 text-purple-400" />
-          <span className="text-xs font-medium text-purple-400">System</span>
+          <MessageSquare className="size-3 text-timeline-edit" />
+          <span className="text-[11px] font-semibold uppercase tracking-widest text-muted">System</span>
         </div>
         <Textarea
           value={systemPrompt}
           onChange={(e) => setSystemPrompt(e.target.value)}
           placeholder="Enter system prompt (optional)..."
-          className="min-h-[60px] resize-none border-zinc-700 bg-zinc-900/40 text-sm"
+          className="min-h-[60px] resize-none rounded-md border-hairline bg-canvas-soft text-sm text-ink"
           rows={2}
         />
       </div>
 
-      {/* Conversation messages */}
+      {/* Messages */}
       {messages.map((msg, index) => (
         <div
           key={index}
-          className={`relative rounded-lg border-l-[3px] bg-zinc-800/50 p-3 ${ROLE_BORDER_COLORS[msg.role] ?? 'border-l-zinc-500'}`}
+          className={`relative rounded-lg border border-hairline border-l-[3px] bg-surface-card p-3 ${ROLE_BORDER_COLORS[msg.role] ?? 'border-l-hairline-strong'}`}
         >
           <div className="mb-2 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -133,7 +132,7 @@ export function MessageEditor({ systemPrompt, setSystemPrompt, messages, setMess
                 value={msg.role}
                 onValueChange={(value) => updateMessage(index, { role: value })}
               >
-                <SelectTrigger size="sm" className="w-[120px] bg-zinc-900/60 text-xs">
+                <SelectTrigger size="sm" className="w-[110px] rounded-md border-hairline bg-canvas-soft text-xs text-ink">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -150,14 +149,13 @@ export function MessageEditor({ systemPrompt, setSystemPrompt, messages, setMess
             <Button
               variant="ghost"
               size="icon-xs"
-              className="text-zinc-500 hover:text-red-400"
+              className="text-muted hover:text-semantic-error"
               onClick={() => removeMessage(index)}
             >
               <X className="size-3.5" />
             </Button>
           </div>
 
-          {/* Show tool_calls badges for assistant messages */}
           {msg.role === 'assistant' && <ToolCallBadges message={msg} />}
 
           <Textarea
@@ -168,7 +166,7 @@ export function MessageEditor({ systemPrompt, setSystemPrompt, messages, setMess
                 ? 'Enter tool result (JSON or text)...'
                 : 'Enter message content...'
             }
-            className="mt-2 min-h-[60px] resize-none border-zinc-700 bg-zinc-900/40 text-sm"
+            className="mt-2 min-h-[60px] resize-none rounded-md border-hairline bg-canvas-soft text-sm text-ink"
             rows={2}
           />
         </div>
@@ -177,7 +175,7 @@ export function MessageEditor({ systemPrompt, setSystemPrompt, messages, setMess
       <Button
         variant="outline"
         size="sm"
-        className="w-full border-dashed border-zinc-700 text-zinc-400 hover:text-zinc-200"
+        className="w-full rounded-md border-dashed border-hairline-strong text-muted hover:text-ink hover:border-ink"
         onClick={addMessage}
       >
         <Plus className="size-3.5" />
