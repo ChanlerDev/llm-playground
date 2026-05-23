@@ -1,5 +1,5 @@
 import { useRef, useCallback, useState } from 'react'
-import { Copy, Trash2, GripVertical, ChevronDown, ChevronRight, Plus, Link, Send, Square, Loader2 } from 'lucide-react'
+import { Copy, Trash2, GripVertical, ChevronDown, ChevronRight, Plus, Link, Send, Square } from 'lucide-react'
 import type { MessagesBlock, Position } from '@/types/canvas'
 import type { Message } from '@/types/provider'
 import { Button } from '@/components/ui/button'
@@ -242,86 +242,89 @@ export function CanvasBlock({
 
       {/* Body */}
       {!block.isCollapsed && (
-        <div className="max-h-[400px] overflow-y-auto p-2">
-          {/* System prompt */}
-          {(block.systemPrompt || editingMessageIdx === -1) && (
-            <div className="mb-2 rounded border-l-2 border-l-timeline-thinking bg-canvas-soft p-2">
-              <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-soft">
-                system
-              </div>
-              <textarea
-                className="w-full resize-none bg-transparent text-body-sm text-ink outline-none placeholder:text-muted-soft"
-                value={block.systemPrompt}
-                onChange={(e) => onSystemPromptChange(e.target.value)}
-                placeholder="System prompt..."
-                rows={2}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </div>
-          )}
-
-          {/* Messages */}
-          {block.messages.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`group mb-1.5 rounded border-l-2 p-2 ${ROLE_COLORS[msg.role] ?? 'border-l-hairline'} hover:bg-canvas-soft`}
-            >
-              <div className="mb-1 flex items-center justify-between">
-                <select
-                  className="bg-transparent text-[10px] font-medium uppercase tracking-wider text-muted-soft outline-none"
-                  value={msg.role}
-                  onChange={(e) => {
-                    e.stopPropagation()
-                    updateMessage(idx, { role: e.target.value })
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <option value="user">user</option>
-                  <option value="assistant">assistant</option>
-                  <option value="system">system</option>
-                  <option value="tool">tool</option>
-                </select>
-                <button
-                  className="hidden rounded p-0.5 text-muted hover:text-semantic-error group-hover:block"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    deleteMessage(idx)
-                  }}
-                >
-                  <Trash2 className="size-3" />
-                </button>
-              </div>
-              {editingMessageIdx === idx ? (
+        <>
+          {/* Scrollable messages area */}
+          <div className="max-h-[400px] overflow-y-auto p-2" data-scrollable>
+            {/* System prompt */}
+            {(block.systemPrompt || editingMessageIdx === -1) && (
+              <div className="mb-2 rounded border-l-2 border-l-timeline-thinking bg-canvas-soft p-2">
+                <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-soft">
+                  system
+                </div>
                 <textarea
                   className="w-full resize-none bg-transparent text-body-sm text-ink outline-none placeholder:text-muted-soft"
-                  value={msg.content}
-                  onChange={(e) => {
-                    e.stopPropagation()
-                    updateMessage(idx, { content: e.target.value })
-                  }}
-                  onBlur={() => setEditingMessageIdx(null)}
-                  autoFocus
-                  rows={3}
+                  value={block.systemPrompt}
+                  onChange={(e) => onSystemPromptChange(e.target.value)}
+                  placeholder="System prompt..."
+                  rows={2}
                   onClick={(e) => e.stopPropagation()}
                 />
-              ) : (
-                <div
-                  className="cursor-text whitespace-pre-wrap text-body-sm text-body"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setEditingMessageIdx(idx)
-                  }}
-                >
-                  {msg.content || (
-                    <span className="italic text-muted-soft">Click to edit...</span>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
+              </div>
+            )}
 
-          {/* Add message button */}
-          <div className="mt-1 flex items-center gap-1">
+            {/* Messages */}
+            {block.messages.map((msg, idx) => (
+              <div
+                key={idx}
+                className={`group mb-1.5 rounded border-l-2 p-2 ${ROLE_COLORS[msg.role] ?? 'border-l-hairline'} hover:bg-canvas-soft`}
+              >
+                <div className="mb-1 flex items-center justify-between">
+                  <select
+                    className="bg-transparent text-[10px] font-medium uppercase tracking-wider text-muted-soft outline-none"
+                    value={msg.role}
+                    onChange={(e) => {
+                      e.stopPropagation()
+                      updateMessage(idx, { role: e.target.value })
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <option value="user">user</option>
+                    <option value="assistant">assistant</option>
+                    <option value="system">system</option>
+                    <option value="tool">tool</option>
+                  </select>
+                  <button
+                    className="hidden rounded p-0.5 text-muted hover:text-semantic-error group-hover:block"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      deleteMessage(idx)
+                    }}
+                  >
+                    <Trash2 className="size-3" />
+                  </button>
+                </div>
+                {editingMessageIdx === idx ? (
+                  <textarea
+                    className="w-full resize-none bg-transparent text-body-sm text-ink outline-none placeholder:text-muted-soft"
+                    value={msg.content}
+                    onChange={(e) => {
+                      e.stopPropagation()
+                      updateMessage(idx, { content: e.target.value })
+                    }}
+                    onBlur={() => setEditingMessageIdx(null)}
+                    autoFocus
+                    rows={3}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <div
+                    className="cursor-text whitespace-pre-wrap text-body-sm text-body"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setEditingMessageIdx(idx)
+                    }}
+                  >
+                    {msg.content || (
+                      <span className="italic text-muted-soft">Click to edit...</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Fixed footer — always visible */}
+          <div className="flex items-center gap-1 border-t border-hairline-soft px-2 py-1.5">
             <Button
               variant="ghost"
               size="sm"
@@ -358,16 +361,12 @@ export function CanvasBlock({
                   onSend()
                 }}
               >
-                {isLoading ? (
-                  <Loader2 className="size-3 animate-spin" />
-                ) : (
-                  <Send className="size-3" />
-                )}
+                <Send className="size-3" />
                 Send
               </Button>
             )}
           </div>
-        </div>
+        </>
       )}
 
       {/* Connection drop target */}
