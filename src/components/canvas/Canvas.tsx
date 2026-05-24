@@ -1,9 +1,14 @@
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useState, useEffect } from 'react'
 import { useGesture } from '@use-gesture/react'
 import type { Viewport, MessagesBlock, Connection, Position } from '@/types/canvas'
 import { CanvasBlock } from './CanvasBlock'
 import { ConnectionsLayer } from './ConnectionsLayer'
 import type { Message } from '@/types/provider'
+
+export type ConnectionMode =
+  | { type: 'idle' }
+  | { type: 'dragging'; fromBlockId: string; cursorPos: Position }
+  | { type: 'button'; fromBlockId: string; cursorPos: Position }
 
 interface CanvasProps {
   viewport: Viewport
@@ -31,6 +36,8 @@ const MIN_ZOOM = 0.25
 const MAX_ZOOM = 3
 const DOT_SIZE = 1.5
 const DOT_SPACING = 24
+const BLOCK_WIDTH = 320
+const BLOCK_HEADER_HEIGHT = 36
 
 export function Canvas({
   viewport,
@@ -56,16 +63,158 @@ export function Canvas({
   const containerRef = useRef<HTMLDivElement>(null)
   const isDraggingBlock = useRef(false)
 
-  // Connection drawing state
-  const connectionStartRef = useRef<string | null>(null)
+  // Connection mode state machine
+  const [connectionMode, setConnectionMode] = useState<ConnectionMode>({ type: 'idle' })
+  const [hoverTargetBlockId, setHoverTargetBlockId] = useState<string | null>(null)
+
+  // --- Connection: port drag start ---
+  const handlePortDragStart = useCallback((blockId: string, clientX: number, clientY: number) => {
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const canvasX = (clientX - rect.left - viewport.x) / viewport.zoom
+    const canvasY = (clientY - rect.top - viewport.y) / viewport.zoom
+    setConnectionMode({ type: 'dragging', fromBlockId: blockId, cursorPos: { x: canvasX, y: canvasY } })
+  }, [viewport])
+
+  // --- Connection: button mode start (🔗 click) ---
+  const handleConnectionButtonStart = useCallback((blockId: string) => {
+    const block = blocks.find(b => b.id === blockId)
+    if (!block) return
+    // Initialize cursor at block's right port
+    const cursorPos = { x: block.position.x + BLOCK_WIDTH, y: block.position.y + BLOCK_HEADER_HEIGHT / 2 }
+    setConnectionMode({ type: 'button', fromBlockId: blockId, cursorPos })
+  }, [blocks])
+
+  // --- Connection: cancel ---
+  const cancelConnection = useCallback(() => {
+    setConnectionMode({ type: 'idle' })
+    setHoverTargetBlockId(null)
+  }, [])
+
+  // --- Connection: complete (create) ---
+  const completeConnection = useCallback((targetBlockId: string) => {
+    if (connectionMode.type === 'idle') return
+    const fromId = connectionMode.fromBlockId
+    if (fromId && fromId !== targetBlockId) {
+      onAddConnection(fromId, targetBlockId)
+    }
+    setConnectionMode({ type: 'idle' })
+    setHoverTargetBlockId(null)
+  }, [connectionMode, onAddConnection])
+
+  // --- Document-level pointer tracking for dragging mode ---
+  const draggingFromBlockId = connectionMode.type === 'dragging' ? connectionMode.fromBlockId : null
+
+  useEffect(() => {
+    if (!draggingFromBlockId) return
+
+    const handleMove = (e: PointerEvent) => {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const canvasX = (e.clientX - rect.left - viewport.x) / viewport.zoom
+      const canvasY = (e.clientY - rect.top - viewport.y) / viewport.zoom
+      setConnectionMode((prev) => {
+        if (prev.type !== 'dragging') return prev
+        return { ...prev, cursorPos: { x: canvasX, y: canvasY } }
+      })
+      // Hit test for hover target
+      const hitId = (() => {
+        for (let i = blocks.length - 1; i >= 0; i--) {
+          const b = blocks[i]
+          const bh = b.isCollapsed ? BLOCK_HEADER_HEIGHT : 200
+          if (canvasX >= b.position.x && canvasX <= b.position.x + BLOCK_WIDTH &&
+              canvasY >= b.position.y && canvasY <= b.position.y + bh) {
+            return b.id
+          }
+        }
+        return null
+      })()
+      setHoverTargetBlockId(hitId !== draggingFromBlockId ? hitId : null)
+    }
+
+    const handleUp = (e: PointerEvent) => {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const canvasX = (e.clientX - rect.left - viewport.x) / viewport.zoom
+      const canvasY = (e.clientY - rect.top - viewport.y) / viewport.zoom
+      const hitId = (() => {
+        for (let i = blocks.length - 1; i >= 0; i--) {
+          const b = blocks[i]
+          const bh = b.isCollapsed ? BLOCK_HEADER_HEIGHT : 200
+          if (canvasX >= b.position.x && canvasX <= b.position.x + BLOCK_WIDTH &&
+              canvasY >= b.position.y && canvasY <= b.position.y + bh) {
+            return b.id
+          }
+        }
+        return null
+      })()
+      if (hitId && hitId !== draggingFromBlockId) {
+        onAddConnection(draggingFromBlockId, hitId)
+      }
+      setConnectionMode({ type: 'idle' })
+      setHoverTargetBlockId(null)
+    }
+
+    document.addEventListener('pointermove', handleMove)
+    document.addEventListener('pointerup', handleUp)
+    return () => {
+      document.removeEventListener('pointermove', handleMove)
+      document.removeEventListener('pointerup', handleUp)
+    }
+  }, [draggingFromBlockId, viewport, blocks, onAddConnection])
+
+  // --- ESC key listener ---
+  useEffect(() => {
+    if (connectionMode.type === 'idle') return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        cancelConnection()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [connectionMode.type, cancelConnection])
+
+  // --- Button mode: track cursor for preview line ---
+  const buttonFromBlockId = connectionMode.type === 'button' ? connectionMode.fromBlockId : null
+
+  useEffect(() => {
+    if (!buttonFromBlockId) return
+
+    const handleMove = (e: PointerEvent) => {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const canvasX = (e.clientX - rect.left - viewport.x) / viewport.zoom
+      const canvasY = (e.clientY - rect.top - viewport.y) / viewport.zoom
+      setConnectionMode((prev) => {
+        if (prev.type !== 'button') return prev
+        return { ...prev, cursorPos: { x: canvasX, y: canvasY } }
+      })
+      // Hit test for hover target
+      const hitId = (() => {
+        for (let i = blocks.length - 1; i >= 0; i--) {
+          const b = blocks[i]
+          const bh = b.isCollapsed ? BLOCK_HEADER_HEIGHT : 200
+          if (canvasX >= b.position.x && canvasX <= b.position.x + BLOCK_WIDTH &&
+              canvasY >= b.position.y && canvasY <= b.position.y + bh) {
+            return b.id
+          }
+        }
+        return null
+      })()
+      setHoverTargetBlockId(hitId !== buttonFromBlockId ? hitId : null)
+    }
+
+    document.addEventListener('pointermove', handleMove)
+    return () => document.removeEventListener('pointermove', handleMove)
+  }, [buttonFromBlockId, viewport, blocks])
 
   const bind = useGesture(
     {
       onDrag: ({ delta: [dx, dy], event, pinching }) => {
         if (pinching) return
-        // Don't pan if dragging a block
         if (isDraggingBlock.current) return
-        // Only pan from background
+        if (connectionMode.type === 'dragging') return
         const target = event.target as HTMLElement
         if (target !== containerRef.current && !target.classList.contains('canvas-bg')) return
         onViewportChange({
@@ -75,7 +224,6 @@ export function Canvas({
         })
       },
       onWheel: ({ delta: [, dy], event }) => {
-        // Don't zoom if scrolling inside a scrollable element (e.g. messages list)
         const target = event.target as HTMLElement
         if (target.closest('[data-scrollable]')) return
 
@@ -83,7 +231,6 @@ export function Canvas({
         const factor = dy > 0 ? 0.95 : 1.05
         const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, viewport.zoom * factor))
 
-        // Zoom toward cursor position
         const rect = containerRef.current!.getBoundingClientRect()
         const cx = event.clientX - rect.left
         const cy = event.clientY - rect.top
@@ -118,13 +265,24 @@ export function Canvas({
     (e: React.MouseEvent) => {
       const target = e.target as HTMLElement
       if (target !== containerRef.current && !target.classList.contains('canvas-bg')) return
-      // Convert screen position to canvas position
       const rect = containerRef.current!.getBoundingClientRect()
       const x = (e.clientX - rect.left - viewport.x) / viewport.zoom
       const y = (e.clientY - rect.top - viewport.y) / viewport.zoom
       onAddBlock({ x, y })
     },
     [viewport, onAddBlock],
+  )
+
+  // Click on background in button mode → cancel
+  const handleBackgroundClick = useCallback(
+    (e: React.MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (target !== containerRef.current && !target.classList.contains('canvas-bg')) return
+      if (connectionMode.type === 'button') {
+        cancelConnection()
+      }
+    },
+    [connectionMode.type, cancelConnection],
   )
 
   const handleBlockDragStart = useCallback(() => {
@@ -135,21 +293,32 @@ export function Canvas({
     isDraggingBlock.current = false
   }, [])
 
-  // Connection port handling
-  const handleConnectionStart = useCallback((blockId: string) => {
-    connectionStartRef.current = blockId
-  }, [])
+  // Block hover tracking for button mode
+  const handleBlockHover = useCallback((blockId: string, entering: boolean) => {
+    if (connectionMode.type === 'idle') return
+    if (connectionMode.fromBlockId === blockId) return
+    setHoverTargetBlockId(entering ? blockId : null)
+  }, [connectionMode])
 
-  const handleConnectionEnd = useCallback(
-    (blockId: string) => {
-      const fromId = connectionStartRef.current
-      if (fromId && fromId !== blockId) {
-        onAddConnection(fromId, blockId)
+  // Block click in button mode → create connection
+  const handleBlockClickForConnection = useCallback((blockId: string) => {
+    if (connectionMode.type !== 'button') return
+    if (connectionMode.fromBlockId === blockId) return
+    completeConnection(blockId)
+  }, [connectionMode, completeConnection])
+
+  // Compute preview line data for ConnectionsLayer
+  const previewLine = (() => {
+    if (connectionMode.type === 'dragging' || connectionMode.type === 'button') {
+      const fromBlock = blocks.find(b => b.id === connectionMode.fromBlockId)
+      if (!fromBlock) return null
+      return {
+        fromBlock,
+        cursorPos: connectionMode.cursorPos,
       }
-      connectionStartRef.current = null
-    },
-    [onAddConnection],
-  )
+    }
+    return null
+  })()
 
   // Dot grid background pattern
   const dotGridStyle = {
@@ -158,14 +327,24 @@ export function Canvas({
     backgroundPosition: `${viewport.x % (DOT_SPACING * viewport.zoom)}px ${viewport.y % (DOT_SPACING * viewport.zoom)}px`,
   }
 
+  const cursorClass = connectionMode.type !== 'idle' ? 'cursor-crosshair' : ''
+
   return (
     <div
       ref={containerRef}
       {...bind()}
-      className="canvas-bg relative h-full w-full touch-none overflow-hidden bg-canvas"
+      className={`canvas-bg relative h-full w-full touch-none overflow-hidden bg-canvas ${cursorClass}`}
       style={dotGridStyle}
       onDoubleClick={handleDoubleClick}
+      onClick={handleBackgroundClick}
     >
+      {/* Button mode banner */}
+      {connectionMode.type === 'button' && (
+        <div className="absolute left-1/2 top-3 z-50 -translate-x-1/2 rounded-md border border-hairline bg-surface-card px-3 py-1.5 text-body-sm text-muted shadow-sm">
+          Click target block to connect · <kbd className="rounded border border-hairline px-1 text-[10px]">ESC</kbd> to cancel
+        </div>
+      )}
+
       {/* SVG connections layer */}
       <ConnectionsLayer
         connections={connections}
@@ -173,6 +352,7 @@ export function Canvas({
         viewport={viewport}
         onDeleteConnection={onDeleteConnection}
         onUpdateConnection={onUpdateConnection}
+        previewLine={previewLine}
       />
 
       {/* Transform container for blocks */}
@@ -188,6 +368,8 @@ export function Canvas({
             block={block}
             isActive={block.id === activeBlockId}
             isLoading={block.id === loadingBlockId}
+            isConnectionTarget={hoverTargetBlockId === block.id}
+            connectionMode={connectionMode}
             onSelect={() => onBlockSelect(block.id)}
             onMove={(pos) => onBlockMove(block.id, pos)}
             onUpdate={(patch) => onBlockUpdate(block.id, patch)}
@@ -199,8 +381,10 @@ export function Canvas({
             onAbort={onAbort}
             onDragStart={handleBlockDragStart}
             onDragEnd={handleBlockDragEnd}
-            onConnectionStart={() => handleConnectionStart(block.id)}
-            onConnectionEnd={() => handleConnectionEnd(block.id)}
+            onConnectionButtonStart={() => handleConnectionButtonStart(block.id)}
+            onPortDragStart={(clientX, clientY) => handlePortDragStart(block.id, clientX, clientY)}
+            onBlockHover={(entering) => handleBlockHover(block.id, entering)}
+            onBlockClickForConnection={() => handleBlockClickForConnection(block.id)}
             zoom={viewport.zoom}
           />
         ))}
