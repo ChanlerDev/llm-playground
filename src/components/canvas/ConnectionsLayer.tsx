@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { X } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Trash2 } from 'lucide-react'
 import type { Connection, MessagesBlock, Position, Viewport } from '@/types/canvas'
 
 interface PreviewLine {
@@ -40,7 +40,6 @@ function getConnectionPoints(
   return { x1, y1: fromCenter.y, x2, y2: toCenter.y }
 }
 
-/** Pick the port (left or right) on `block` that's closest to `target` point */
 function getNearestPort(block: MessagesBlock, target: Position): Position {
   const leftPort = { x: block.position.x, y: block.position.y + HEADER_MID_Y }
   const rightPort = { x: block.position.x + BLOCK_WIDTH, y: block.position.y + HEADER_MID_Y }
@@ -51,12 +50,78 @@ function getNearestPort(block: MessagesBlock, target: Position): Position {
   return distLeft < distRight ? leftPort : rightPort
 }
 
-/** Convert canvas (world) coords to screen pixel coords */
 function canvasToScreen(pos: Position, viewport: Viewport): Position {
   return {
     x: pos.x * viewport.zoom + viewport.x,
     y: pos.y * viewport.zoom + viewport.y,
   }
+}
+
+/** Inline label editor — auto-focused, saves on Enter/blur */
+function LabelEditor({
+  value,
+  screenPos,
+  onSave,
+  onDelete,
+}: {
+  value: string
+  screenPos: Position
+  onSave: (label: string) => void
+  onDelete: () => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [draft, setDraft] = useState(value)
+
+  useEffect(() => {
+    // Auto-focus with slight delay to avoid race with click
+    const t = setTimeout(() => inputRef.current?.focus(), 0)
+    return () => clearTimeout(t)
+  }, [])
+
+  const commit = () => {
+    onSave(draft)
+  }
+
+  return (
+    <div
+      className="absolute z-50 flex items-center gap-1"
+      style={{
+        left: screenPos.x,
+        top: screenPos.y,
+        transform: 'translate(-50%, -50%)',
+      }}
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <input
+        ref={inputRef}
+        className="w-24 border-b border-hairline bg-transparent px-0.5 text-center text-[11px] text-ink outline-none focus:border-primary"
+        value={draft}
+        placeholder="label"
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.currentTarget.blur()
+          }
+          if (e.key === 'Escape') {
+            setDraft(value) // revert
+            onSave(value)
+          }
+        }}
+      />
+      <button
+        className="shrink-0 rounded p-0.5 text-muted opacity-60 transition-opacity hover:text-semantic-error hover:opacity-100"
+        onClick={(e) => {
+          e.stopPropagation()
+          onDelete()
+        }}
+        title="Delete connection"
+      >
+        <Trash2 className="size-3" />
+      </button>
+    </div>
+  )
 }
 
 export function ConnectionsLayer({
@@ -72,7 +137,7 @@ export function ConnectionsLayer({
   const hasContent = connections.length > 0 || previewLine !== null
   if (!hasContent) return null
 
-  // Compute editing popover position in screen coords
+  // Compute editing position
   const editingConn = editingId ? connections.find(c => c.id === editingId) : null
   let popoverScreenPos: Position | null = null
   if (editingConn) {
@@ -87,7 +152,7 @@ export function ConnectionsLayer({
 
   return (
     <>
-      {/* SVG layer for paths */}
+      {/* SVG paths */}
       <svg
         className="pointer-events-none absolute inset-0 h-full w-full"
         style={{ zIndex: 1 }}
@@ -153,13 +218,13 @@ export function ConnectionsLayer({
                   }}
                 />
 
-                {/* Label */}
-                {conn.label && (
+                {/* Label text on the line (only when not editing) */}
+                {conn.label && editingId !== conn.id && (
                   <text
                     x={midX}
-                    y={midY - 8}
+                    y={midY - 6}
                     textAnchor="middle"
-                    className="pointer-events-auto cursor-pointer text-[11px]"
+                    className="pointer-events-auto cursor-pointer select-none text-[11px]"
                     fill="var(--muted)"
                     onClick={(e) => {
                       e.stopPropagation()
@@ -210,39 +275,21 @@ export function ConnectionsLayer({
         `}</style>
       </svg>
 
-      {/* HTML popover for editing — outside SVG to avoid foreignObject issues */}
+      {/* HTML inline editor — outside SVG */}
       {editingConn && popoverScreenPos && (
-        <div
-          className="absolute z-50"
-          style={{
-            left: popoverScreenPos.x - 80,
-            top: popoverScreenPos.y - 40,
+        <LabelEditor
+          key={editingConn.id}
+          value={editingConn.label}
+          screenPos={popoverScreenPos}
+          onSave={(label) => {
+            onUpdateConnection(editingConn.id, { label })
+            setEditingId(null)
           }}
-          onClick={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <div className="flex items-center gap-1 rounded-md border border-hairline bg-surface-card p-1.5 shadow-sm">
-            <input
-              className="min-w-0 flex-1 bg-transparent px-1 text-[11px] text-ink outline-none"
-              value={editingConn.label}
-              placeholder="Label..."
-              onChange={(e) =>
-                onUpdateConnection(editingConn.id, { label: e.target.value })
-              }
-              onClick={(e) => e.stopPropagation()}
-            />
-            <button
-              className="shrink-0 rounded p-1 text-muted hover:bg-canvas-soft hover:text-semantic-error"
-              onClick={(e) => {
-                e.stopPropagation()
-                onDeleteConnection(editingConn.id)
-                setEditingId(null)
-              }}
-            >
-              <X className="size-3.5" />
-            </button>
-          </div>
-        </div>
+          onDelete={() => {
+            onDeleteConnection(editingConn.id)
+            setEditingId(null)
+          }}
+        />
       )}
     </>
   )
