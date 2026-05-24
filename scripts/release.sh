@@ -3,9 +3,14 @@ set -euo pipefail
 
 # Usage: ./scripts/release.sh [patch|minor|major]
 # Default: patch
+#
+# Checkpoint script — archives ## Unreleased → versioned section,
+# bumps package.json, syncs roadmap, commits + tags.
+# Deployment is handled by Vercel on push to main (no manual deploy step).
 
 BUMP="${1:-patch}"
 CHANGELOG="docs/CHANGELOG.md"
+ROADMAP="docs/ROADMAP.md"
 PKG="package.json"
 
 # --- Pre-flight guards ---
@@ -35,10 +40,10 @@ if [ -n "$LATEST_TAG" ]; then
     exit 1
   fi
 
-  # Has actual changes since last tag?
-  CHANGES=$(git diff --name-only "$LATEST_TAG"...HEAD | grep -v '^docs/' | head -1 || true)
+  # Has changes since last tag?
+  CHANGES=$(git diff --name-only "$LATEST_TAG"...HEAD | head -1 || true)
   if [ -z "$CHANGES" ]; then
-    echo "✗ No code changes since $LATEST_TAG."
+    echo "✗ No changes since $LATEST_TAG."
     exit 1
   fi
 fi
@@ -58,7 +63,6 @@ bash scripts/check.sh
 
 # --- Bump version ---
 
-# Calculate new version
 IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
 case "$BUMP" in
   major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
@@ -87,11 +91,89 @@ if [ -f "$CHANGELOG" ]; then
   sed -i '' '/^$/N;/^\n$/d' "$CHANGELOG"
 fi
 
+# --- Roadmap: move fully-completed parent trees to Done ---
+
+if [ -f "$ROADMAP" ]; then
+  node -e "
+const fs = require('fs');
+const content = fs.readFileSync('$ROADMAP', 'utf8');
+const lines = content.split('\n');
+
+let plannedStart = -1, doneStart = -1;
+for (let i = 0; i < lines.length; i++) {
+  if (lines[i].trim() === '## Planned') plannedStart = i;
+  if (lines[i].trim() === '## Done') doneStart = i;
+}
+if (plannedStart === -1 || doneStart === -1) process.exit(0);
+
+// Parse planned items into groups (parent + children)
+const groups = [];
+for (let i = plannedStart + 1; i < doneStart; i++) {
+  const line = lines[i];
+  if (/^- \[[ x]\]/.test(line)) {
+    // Top-level item
+    groups.push({ parent: line, children: [], startIdx: i });
+  } else if (/^  - \[[ x]\]/.test(line) && groups.length > 0) {
+    // Child item
+    groups[groups.length - 1].children.push(line);
+  }
+}
+
+// Determine which groups are fully complete
+const toMove = [];
+const toKeep = [];
+for (const g of groups) {
+  if (g.children.length === 0) {
+    // No children: move if parent is [x]
+    if (/^- \[x\]/.test(g.parent)) {
+      toMove.push(g);
+    } else {
+      toKeep.push(g);
+    }
+  } else {
+    // Has children: move only if ALL children are [x]
+    const allDone = g.children.every(c => /\[x\]/.test(c));
+    if (allDone) {
+      // Mark parent as [x] too
+      g.parent = g.parent.replace('- [ ]', '- [x]');
+      toMove.push(g);
+    } else {
+      toKeep.push(g);
+    }
+  }
+}
+
+if (toMove.length === 0) process.exit(0);
+
+// Rebuild file
+const before = lines.slice(0, plannedStart + 1);
+const plannedLines = [''];
+for (const g of toKeep) {
+  plannedLines.push(g.parent);
+  for (const c of g.children) plannedLines.push(c);
+}
+plannedLines.push('');
+
+const doneHeader = lines.slice(doneStart, doneStart + 1);
+const doneExisting = lines.slice(doneStart + 1);
+const doneNew = [];
+for (const g of toMove) {
+  doneNew.push(g.parent);
+  for (const c of g.children) doneNew.push(c);
+}
+
+const result = [...before, ...plannedLines, ...doneHeader, ...doneNew, ...doneExisting].join('\n');
+fs.writeFileSync('$ROADMAP', result);
+console.log('  Moved ' + toMove.length + ' completed item(s) to Done');
+"
+fi
+
 # --- Commit, tag, push ---
 
-git add "$PKG" "$CHANGELOG"
+git add "$PKG" "$CHANGELOG" "$ROADMAP"
 git commit -m "release: v$NEW_VER"
 git tag "v$NEW_VER"
 git push origin "$BRANCH" --follow-tags
 
-echo "✓ Released v$NEW_VER"
+echo "✓ Checkpoint v$NEW_VER tagged and pushed"
+echo "  Vercel will auto-deploy if on main."
