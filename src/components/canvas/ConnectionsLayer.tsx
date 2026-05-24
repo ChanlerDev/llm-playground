@@ -225,7 +225,7 @@ export function ConnectionsLayer({
                     x={midX}
                     y={midY - 6}
                     textAnchor="middle"
-                    className="pointer-events-auto cursor-pointer select-none text-xs font-medium"
+                    className="pointer-events-auto cursor-pointer select-none text-sm font-medium"
                     fill="var(--ink)"
                     onClick={(e) => {
                       e.stopPropagation()
