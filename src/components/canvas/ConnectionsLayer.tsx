@@ -224,8 +224,8 @@ export function ConnectionsLayer({
                     x={midX}
                     y={midY - 6}
                     textAnchor="middle"
-                    className="pointer-events-auto cursor-pointer select-none text-[11px]"
-                    fill="var(--muted)"
+                    className="pointer-events-auto cursor-pointer select-none text-[11px] font-medium"
+                    fill="var(--ink)"
                     onClick={(e) => {
                       e.stopPropagation()
                       setEditingId(conn.id)
