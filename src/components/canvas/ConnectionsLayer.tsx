@@ -149,12 +149,16 @@ export function ConnectionsLayer({
               {editingId === conn.id && (
                 <foreignObject
                   x={midX - 80}
-                  y={midY - 40}
+                  y={midY - 44}
                   width={160}
-                  height={36}
-                  className="pointer-events-auto"
+                  height={44}
+                  className="pointer-events-auto overflow-visible"
                 >
-                  <div className="flex items-center gap-1 rounded-md border border-hairline bg-surface-card p-1 shadow-none">
+                  <div
+                    className="flex items-center gap-1 rounded-md border border-hairline bg-surface-card p-1 shadow-sm"
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
                     <input
                       className="min-w-0 flex-1 bg-transparent px-1 text-[11px] text-ink outline-none"
                       value={conn.label}
@@ -165,14 +169,15 @@ export function ConnectionsLayer({
                       onClick={(e) => e.stopPropagation()}
                     />
                     <button
-                      className="shrink-0 rounded p-0.5 text-muted hover:text-semantic-error"
+                      className="shrink-0 rounded p-1 text-muted hover:bg-canvas-soft hover:text-semantic-error"
                       onClick={(e) => {
                         e.stopPropagation()
                         onDeleteConnection(conn.id)
                         setEditingId(null)
                       }}
+                      onPointerDown={(e) => e.stopPropagation()}
                     >
-                      <X className="size-3" />
+                      <X className="size-3.5" />
                     </button>
                   </div>
                 </foreignObject>
