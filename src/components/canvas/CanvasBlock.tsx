@@ -3,6 +3,7 @@ import { Copy, Trash2, GripVertical, ChevronDown, ChevronRight, Plus, Link, Send
 import type { MessagesBlock, Position } from '@/types/canvas'
 import type { Message } from '@/types/provider'
 import { Button } from '@/components/ui/button'
+import type { ConnectionMode } from './Canvas'
 
 const ROLE_COLORS: Record<string, string> = {
   system: 'border-l-timeline-thinking',
@@ -15,6 +16,8 @@ interface CanvasBlockProps {
   block: MessagesBlock
   isActive: boolean
   isLoading: boolean
+  isConnectionTarget: boolean
+  connectionMode: ConnectionMode
   onSelect: () => void
   onMove: (position: Position) => void
   onUpdate: (patch: Partial<MessagesBlock>) => void
@@ -26,8 +29,10 @@ interface CanvasBlockProps {
   onAbort: () => void
   onDragStart: () => void
   onDragEnd: () => void
-  onConnectionStart: () => void
-  onConnectionEnd: () => void
+  onConnectionButtonStart: () => void
+  onPortDragStart: (clientX: number, clientY: number) => void
+  onBlockHover: (entering: boolean) => void
+  onBlockClickForConnection: () => void
   zoom: number
 }
 
@@ -35,6 +40,8 @@ export function CanvasBlock({
   block,
   isActive,
   isLoading,
+  isConnectionTarget,
+  connectionMode,
   onSelect,
   onMove,
   onUpdate,
@@ -46,8 +53,10 @@ export function CanvasBlock({
   onAbort,
   onDragStart,
   onDragEnd,
-  onConnectionStart,
-  onConnectionEnd,
+  onConnectionButtonStart,
+  onPortDragStart,
+  onBlockHover,
+  onBlockClickForConnection,
   zoom,
 }: CanvasBlockProps) {
   const dragRef = useRef<{ startX: number; startY: number; blockX: number; blockY: number } | null>(null)
@@ -130,22 +139,73 @@ export function CanvasBlock({
     [block.messages, onMessagesChange],
   )
 
-  const borderClass = isActive ? 'border-primary' : 'border-hairline'
+  // Port drag start handler
+  const handlePortPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      onPortDragStart(e.clientX, e.clientY)
+    },
+    [onPortDragStart],
+  )
+
+  // Click handler — in button mode, this block is a target
+  const handleBlockClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (connectionMode.type === 'button' && connectionMode.fromBlockId !== block.id) {
+        onBlockClickForConnection()
+        return
+      }
+      onSelect()
+    },
+    [connectionMode, block.id, onBlockClickForConnection, onSelect],
+  )
+
+  const isInConnectionMode = connectionMode.type !== 'idle'
+  const isSourceBlock = isInConnectionMode && connectionMode.fromBlockId === block.id
+
+  const borderClass = isConnectionTarget
+    ? 'border-primary ring-2 ring-primary/30'
+    : isSourceBlock
+      ? 'border-primary/50'
+      : isActive
+        ? 'border-primary'
+        : 'border-hairline'
 
   return (
     <div
-      className={`absolute select-none rounded-lg border bg-surface-card shadow-none ${borderClass}`}
+      className={`group/block absolute select-none rounded-lg border bg-surface-card shadow-none transition-[border-color,box-shadow] duration-150 ${borderClass}`}
       style={{
         left: block.position.x,
         top: block.position.y,
         width: 320,
         minHeight: 60,
       }}
-      onClick={(e) => {
-        e.stopPropagation()
-        onSelect()
-      }}
+      onClick={handleBlockClick}
+      onPointerEnter={() => onBlockHover(true)}
+      onPointerLeave={() => onBlockHover(false)}
     >
+      {/* Left port */}
+      <div
+        className="absolute left-0 top-[18px] z-10 -translate-x-1/2 opacity-0 transition-opacity group-hover/block:opacity-100"
+        onPointerDown={handlePortPointerDown}
+      >
+        <div className="flex h-4 w-4 cursor-crosshair items-center justify-center">
+          <div className="h-2.5 w-2.5 rounded-full border-2 border-muted bg-surface-card transition-colors hover:border-primary hover:bg-primary/20" />
+        </div>
+      </div>
+
+      {/* Right port */}
+      <div
+        className="absolute right-0 top-[18px] z-10 translate-x-1/2 opacity-0 transition-opacity group-hover/block:opacity-100"
+        onPointerDown={handlePortPointerDown}
+      >
+        <div className="flex h-4 w-4 cursor-crosshair items-center justify-center">
+          <div className="h-2.5 w-2.5 rounded-full border-2 border-muted bg-surface-card transition-colors hover:border-primary hover:bg-primary/20" />
+        </div>
+      </div>
+
       {/* Header */}
       <div
         className="flex items-center gap-1 border-b border-hairline-soft px-2 py-1.5"
@@ -211,7 +271,7 @@ export function CanvasBlock({
             className="rounded p-0.5 text-muted hover:bg-canvas-soft hover:text-ink"
             onClick={(e) => {
               e.stopPropagation()
-              onConnectionStart()
+              onConnectionButtonStart()
             }}
             title="Draw connection"
           >
@@ -368,15 +428,6 @@ export function CanvasBlock({
           </div>
         </>
       )}
-
-      {/* Connection drop target */}
-      <div
-        className="absolute inset-0 z-[-1]"
-        onPointerUp={(e) => {
-          e.stopPropagation()
-          onConnectionEnd()
-        }}
-      />
     </div>
   )
 }

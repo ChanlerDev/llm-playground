@@ -1,6 +1,11 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
-import type { Connection, MessagesBlock, Viewport } from '@/types/canvas'
+import type { Connection, MessagesBlock, Position, Viewport } from '@/types/canvas'
+
+interface PreviewLine {
+  fromBlock: MessagesBlock
+  cursorPos: Position
+}
 
 interface ConnectionsLayerProps {
   connections: Connection[]
@@ -8,14 +13,16 @@ interface ConnectionsLayerProps {
   viewport: Viewport
   onDeleteConnection: (id: string) => void
   onUpdateConnection: (id: string, patch: Partial<Connection>) => void
+  previewLine: PreviewLine | null
 }
 
 const BLOCK_WIDTH = 320
+const HEADER_MID_Y = 18 // half of 36px header
 
 function getBlockCenter(block: MessagesBlock): { x: number; y: number } {
   return {
     x: block.position.x + BLOCK_WIDTH / 2,
-    y: block.position.y + 30, // header midpoint
+    y: block.position.y + HEADER_MID_Y,
   }
 }
 
@@ -26,13 +33,22 @@ function getConnectionPoints(
   const fromCenter = getBlockCenter(from)
   const toCenter = getBlockCenter(to)
 
-  // Simple: connect from right edge of "from" to left edge of "to"
-  // or use center-to-center with offset
   const dx = toCenter.x - fromCenter.x
   const x1 = fromCenter.x + (dx > 0 ? BLOCK_WIDTH / 2 : -BLOCK_WIDTH / 2)
   const x2 = toCenter.x + (dx > 0 ? -BLOCK_WIDTH / 2 : BLOCK_WIDTH / 2)
 
   return { x1, y1: fromCenter.y, x2, y2: toCenter.y }
+}
+
+/** Pick the port (left or right) on `block` that's closest to `target` point */
+function getNearestPort(block: MessagesBlock, target: Position): Position {
+  const leftPort = { x: block.position.x, y: block.position.y + HEADER_MID_Y }
+  const rightPort = { x: block.position.x + BLOCK_WIDTH, y: block.position.y + HEADER_MID_Y }
+
+  const distLeft = Math.hypot(target.x - leftPort.x, target.y - leftPort.y)
+  const distRight = Math.hypot(target.x - rightPort.x, target.y - rightPort.y)
+
+  return distLeft < distRight ? leftPort : rightPort
 }
 
 export function ConnectionsLayer({
@@ -41,10 +57,12 @@ export function ConnectionsLayer({
   viewport,
   onDeleteConnection,
   onUpdateConnection,
+  previewLine,
 }: ConnectionsLayerProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
 
-  if (connections.length === 0) return null
+  const hasContent = connections.length > 0 || previewLine !== null
+  if (!hasContent) return null
 
   return (
     <svg
@@ -70,6 +88,7 @@ export function ConnectionsLayer({
       <g
         transform={`translate(${viewport.x}, ${viewport.y}) scale(${viewport.zoom})`}
       >
+        {/* Existing connections */}
         {connections.map((conn) => {
           const fromBlock = blocks.find((b) => b.id === conn.fromBlockId)
           const toBlock = blocks.find((b) => b.id === conn.toBlockId)
@@ -166,7 +185,43 @@ export function ConnectionsLayer({
             </g>
           )
         })}
+
+        {/* Preview line (drag in progress) */}
+        {previewLine && (() => {
+          const port = getNearestPort(previewLine.fromBlock, previewLine.cursorPos)
+          const x1 = port.x
+          const y1 = port.y
+          const x2 = previewLine.cursorPos.x
+          const y2 = previewLine.cursorPos.y
+
+          const cpx1 = x1 + (x2 - x1) * 0.4
+          const cpy1 = y1
+          const cpx2 = x1 + (x2 - x1) * 0.6
+          const cpy2 = y2
+
+          return (
+            <path
+              d={`M ${x1} ${y1} C ${cpx1} ${cpy1}, ${cpx2} ${cpy2}, ${x2} ${y2}`}
+              fill="none"
+              stroke="var(--muted)"
+              strokeWidth={1.5}
+              strokeDasharray="8 4"
+              markerEnd="url(#arrowhead)"
+              className="connection-preview"
+            />
+          )
+        })()}
       </g>
+
+      {/* Inline CSS for dash animation */}
+      <style>{`
+        @keyframes dash-flow {
+          to { stroke-dashoffset: -20; }
+        }
+        .connection-preview {
+          animation: dash-flow 0.5s linear infinite;
+        }
+      `}</style>
     </svg>
   )
 }
