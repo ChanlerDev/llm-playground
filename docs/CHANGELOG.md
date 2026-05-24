@@ -7,3 +7,5 @@
 - **feat**: Provider float panel — hidden popover for API config, keeps canvas uncluttered
 - **feat**: Active block + Send — select a block and execute API calls against it
 - **feat**: Arrow connections between blocks with editable labels
+- **fix**: Block footer (Add message / Send) no longer scrolls away with messages
+- **fix**: Scrolling inside messages area no longer triggers canvas zoom

@@ -75,6 +75,10 @@ export function Canvas({
         })
       },
       onWheel: ({ delta: [, dy], event }) => {
+        // Don't zoom if scrolling inside a scrollable element (e.g. messages list)
+        const target = event.target as HTMLElement
+        if (target.closest('[data-scrollable]')) return
+
         event.preventDefault()
         const factor = dy > 0 ? 0.95 : 1.05
         const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, viewport.zoom * factor))
