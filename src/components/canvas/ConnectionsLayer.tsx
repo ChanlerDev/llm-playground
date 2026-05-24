@@ -112,7 +112,8 @@ function LabelEditor({
       />
       <button
         className="shrink-0 rounded p-0.5 text-muted opacity-60 transition-opacity hover:text-semantic-error hover:opacity-100"
-        onClick={(e) => {
+        onMouseDown={(e) => {
+          e.preventDefault() // prevent input blur race
           e.stopPropagation()
           onDelete()
         }}
@@ -224,7 +225,7 @@ export function ConnectionsLayer({
                     x={midX}
                     y={midY - 6}
                     textAnchor="middle"
-                    className="pointer-events-auto cursor-pointer select-none text-[11px] font-medium"
+                    className="pointer-events-auto cursor-pointer select-none text-xs font-medium"
                     fill="var(--ink)"
                     onClick={(e) => {
                       e.stopPropagation()
