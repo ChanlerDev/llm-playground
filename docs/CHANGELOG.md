@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **feat**: JSON Request Block — attach scrollable request JSON to message blocks for params and tools
 - **fix**: Connection creation — replace broken z-index drop target with port-drag and button-click modes
 - **feat**: Connection ports — hover block to reveal left/right connection points, drag to connect
 - **feat**: Connection preview — dashed bezier with flow animation follows cursor during drag
