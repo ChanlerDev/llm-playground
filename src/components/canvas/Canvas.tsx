@@ -1,9 +1,19 @@
 import { useRef, useCallback, useState, useEffect } from 'react'
+import { Braces, MessageSquarePlus } from 'lucide-react'
 import { useGesture } from '@use-gesture/react'
-import type { Viewport, MessagesBlock, Connection, Position } from '@/types/canvas'
+import type {
+  CanvasBlock as CanvasBlockModel,
+  Connection,
+  JsonRequestBlock as JsonRequestBlockModel,
+  MessagesBlock,
+  Position,
+  Viewport,
+} from '@/types/canvas'
 import { CanvasBlock } from './CanvasBlock'
+import { JsonRequestBlock } from './JsonRequestBlock'
 import { ConnectionsLayer } from './ConnectionsLayer'
 import type { Message } from '@/types/provider'
+import { Button } from '@/components/ui/button'
 
 export type ConnectionMode =
   | { type: 'idle' }
@@ -12,14 +22,17 @@ export type ConnectionMode =
 
 interface CanvasProps {
   viewport: Viewport
-  blocks: MessagesBlock[]
+  blocks: CanvasBlockModel[]
   connections: Connection[]
   activeBlockId: string | null
   loadingBlockId: string | null
   onViewportChange: (viewport: Viewport) => void
   onBlockMove: (id: string, position: Position) => void
   onBlockSelect: (id: string) => void
-  onBlockUpdate: (id: string, patch: Partial<MessagesBlock>) => void
+  onBlockUpdate: (
+    id: string,
+    patch: Partial<MessagesBlock> | Partial<JsonRequestBlockModel>,
+  ) => void
   onBlockDelete: (id: string) => void
   onBlockDuplicate: (id: string) => void
   onBlockMessagesChange: (blockId: string, messages: Message[]) => void
@@ -27,6 +40,7 @@ interface CanvasProps {
   onBlockSend: (blockId: string) => void
   onAbort: () => void
   onAddBlock: (position: Position) => void
+  onAddJsonRequestBlock: (position: Position) => void
   onAddConnection: (fromId: string, toId: string, label?: string) => void
   onDeleteConnection: (id: string) => void
   onUpdateConnection: (id: string, patch: Partial<Connection>) => void
@@ -37,7 +51,12 @@ const MAX_ZOOM = 3
 const DOT_SIZE = 1.5
 const DOT_SPACING = 24
 const BLOCK_WIDTH = 320
+const REQUEST_BLOCK_WIDTH = 360
 const BLOCK_HEADER_HEIGHT = 36
+
+function getBlockWidth(block: CanvasBlockModel): number {
+  return block.kind === 'request-json' ? REQUEST_BLOCK_WIDTH : BLOCK_WIDTH
+}
 
 export function Canvas({
   viewport,
@@ -56,6 +75,7 @@ export function Canvas({
   onBlockSend,
   onAbort,
   onAddBlock,
+  onAddJsonRequestBlock,
   onAddConnection,
   onDeleteConnection,
   onUpdateConnection,
@@ -122,7 +142,7 @@ export function Canvas({
         for (let i = blocks.length - 1; i >= 0; i--) {
           const b = blocks[i]
           const bh = b.isCollapsed ? BLOCK_HEADER_HEIGHT : 200
-          if (canvasX >= b.position.x && canvasX <= b.position.x + BLOCK_WIDTH &&
+          if (canvasX >= b.position.x && canvasX <= b.position.x + getBlockWidth(b) &&
               canvasY >= b.position.y && canvasY <= b.position.y + bh) {
             return b.id
           }
@@ -141,7 +161,7 @@ export function Canvas({
         for (let i = blocks.length - 1; i >= 0; i--) {
           const b = blocks[i]
           const bh = b.isCollapsed ? BLOCK_HEADER_HEIGHT : 200
-          if (canvasX >= b.position.x && canvasX <= b.position.x + BLOCK_WIDTH &&
+          if (canvasX >= b.position.x && canvasX <= b.position.x + getBlockWidth(b) &&
               canvasY >= b.position.y && canvasY <= b.position.y + bh) {
             return b.id
           }
@@ -195,7 +215,7 @@ export function Canvas({
         for (let i = blocks.length - 1; i >= 0; i--) {
           const b = blocks[i]
           const bh = b.isCollapsed ? BLOCK_HEADER_HEIGHT : 200
-          if (canvasX >= b.position.x && canvasX <= b.position.x + BLOCK_WIDTH &&
+          if (canvasX >= b.position.x && canvasX <= b.position.x + getBlockWidth(b) &&
               canvasY >= b.position.y && canvasY <= b.position.y + bh) {
             return b.id
           }
@@ -273,6 +293,16 @@ export function Canvas({
     [viewport, onAddBlock],
   )
 
+  const getDefaultNewBlockPosition = useCallback((): Position => {
+    const rect = containerRef.current?.getBoundingClientRect()
+    const screenX = rect ? rect.width / 2 : 320
+    const screenY = rect ? rect.height / 2 : 240
+    return {
+      x: (screenX - viewport.x) / viewport.zoom,
+      y: (screenY - viewport.y) / viewport.zoom,
+    }
+  }, [viewport])
+
   // Click on background in button mode → cancel
   const handleBackgroundClick = useCallback(
     (e: React.MouseEvent) => {
@@ -345,6 +375,34 @@ export function Canvas({
         </div>
       )}
 
+      <div className="absolute right-4 top-4 z-20 flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5 bg-surface-card"
+          onClick={(e) => {
+            e.stopPropagation()
+            onAddBlock(getDefaultNewBlockPosition())
+          }}
+        >
+          <MessageSquarePlus className="size-3.5" />
+          Message
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5 bg-surface-card"
+          onClick={(e) => {
+            e.stopPropagation()
+            const pos = getDefaultNewBlockPosition()
+            onAddJsonRequestBlock({ x: pos.x + 40, y: pos.y + 40 })
+          }}
+        >
+          <Braces className="size-3.5" />
+          JSON
+        </Button>
+      </div>
+
       {/* SVG connections layer */}
       <ConnectionsLayer
         connections={connections}
@@ -362,32 +420,53 @@ export function Canvas({
           transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
         }}
       >
-        {blocks.map((block) => (
-          <CanvasBlock
-            key={block.id}
-            block={block}
-            isActive={block.id === activeBlockId}
-            isLoading={block.id === loadingBlockId}
-            isConnectionTarget={hoverTargetBlockId === block.id}
-            connectionMode={connectionMode}
-            onSelect={() => onBlockSelect(block.id)}
-            onMove={(pos) => onBlockMove(block.id, pos)}
-            onUpdate={(patch) => onBlockUpdate(block.id, patch)}
-            onDelete={() => onBlockDelete(block.id)}
-            onDuplicate={() => onBlockDuplicate(block.id)}
-            onMessagesChange={(msgs) => onBlockMessagesChange(block.id, msgs)}
-            onSystemPromptChange={(sp) => onBlockSystemPromptChange(block.id, sp)}
-            onSend={() => onBlockSend(block.id)}
-            onAbort={onAbort}
-            onDragStart={handleBlockDragStart}
-            onDragEnd={handleBlockDragEnd}
-            onConnectionButtonStart={() => handleConnectionButtonStart(block.id)}
-            onPortDragStart={(clientX, clientY) => handlePortDragStart(block.id, clientX, clientY)}
-            onBlockHover={(entering) => handleBlockHover(block.id, entering)}
-            onBlockClickForConnection={() => handleBlockClickForConnection(block.id)}
-            zoom={viewport.zoom}
-          />
-        ))}
+        {blocks.map((block) =>
+          block.kind === 'messages' ? (
+            <CanvasBlock
+              key={block.id}
+              block={block}
+              isActive={block.id === activeBlockId}
+              isLoading={block.id === loadingBlockId}
+              isConnectionTarget={hoverTargetBlockId === block.id}
+              connectionMode={connectionMode}
+              onSelect={() => onBlockSelect(block.id)}
+              onMove={(pos) => onBlockMove(block.id, pos)}
+              onUpdate={(patch) => onBlockUpdate(block.id, patch)}
+              onDelete={() => onBlockDelete(block.id)}
+              onDuplicate={() => onBlockDuplicate(block.id)}
+              onMessagesChange={(msgs) => onBlockMessagesChange(block.id, msgs)}
+              onSystemPromptChange={(sp) => onBlockSystemPromptChange(block.id, sp)}
+              onSend={() => onBlockSend(block.id)}
+              onAbort={onAbort}
+              onDragStart={handleBlockDragStart}
+              onDragEnd={handleBlockDragEnd}
+              onConnectionButtonStart={() => handleConnectionButtonStart(block.id)}
+              onPortDragStart={(clientX, clientY) => handlePortDragStart(block.id, clientX, clientY)}
+              onBlockHover={(entering) => handleBlockHover(block.id, entering)}
+              onBlockClickForConnection={() => handleBlockClickForConnection(block.id)}
+              zoom={viewport.zoom}
+            />
+          ) : (
+            <JsonRequestBlock
+              key={block.id}
+              block={block}
+              isConnectionTarget={hoverTargetBlockId === block.id}
+              connectionMode={connectionMode}
+              onMove={(pos) => onBlockMove(block.id, pos)}
+              onUpdate={(patch) => onBlockUpdate(block.id, patch)}
+              onDelete={() => onBlockDelete(block.id)}
+              onDuplicate={() => onBlockDuplicate(block.id)}
+              onJsonChange={(json) => onBlockUpdate(block.id, { json })}
+              onDragStart={handleBlockDragStart}
+              onDragEnd={handleBlockDragEnd}
+              onConnectionButtonStart={() => handleConnectionButtonStart(block.id)}
+              onPortDragStart={(clientX, clientY) => handlePortDragStart(block.id, clientX, clientY)}
+              onBlockHover={(entering) => handleBlockHover(block.id, entering)}
+              onBlockClickForConnection={() => handleBlockClickForConnection(block.id)}
+              zoom={viewport.zoom}
+            />
+          ),
+        )}
       </div>
 
       {/* Zoom indicator */}

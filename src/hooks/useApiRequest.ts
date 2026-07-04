@@ -5,6 +5,7 @@ import type {
   Message,
   MessageToolCall,
   RequestParams,
+  RequestOverrides,
   ToolDefinition,
   SSEChunk,
   RequestStats,
@@ -135,22 +136,24 @@ export function useApiRequest() {
   }, [])
 
   const buildRequest = useCallback(
-    (messages: Message[], systemPrompt: string) => {
-      const enabledTools = tools.filter((t) => t.enabled)
+    (messages: Message[], systemPrompt: string, overrides?: RequestOverrides) => {
+      const effectiveParams = { ...params, ...overrides?.params }
+      const effectiveTools = overrides?.tools ?? tools
+      const enabledTools = effectiveTools.filter((t) => t.enabled)
       const toolsArg = enabledTools.length > 0 ? enabledTools : undefined
       const allMessages = systemPrompt.trim()
         ? [{ role: 'system', content: systemPrompt.trim() }, ...messages]
         : messages
       if (config.provider === 'openai') {
-        return buildOpenAIRequest(config, allMessages, params, toolsArg)
+        return buildOpenAIRequest(config, allMessages, effectiveParams, toolsArg, overrides?.body)
       }
-      return buildAnthropicRequest(config, allMessages, params, toolsArg)
+      return buildAnthropicRequest(config, allMessages, effectiveParams, toolsArg, overrides?.body)
     },
     [config, params, tools],
   )
 
   const sendRequest = useCallback(
-    async (messages: Message[], systemPrompt: string) => {
+    async (messages: Message[], systemPrompt: string, overrides?: RequestOverrides) => {
       setIsLoading(true)
       setError(null)
       setResponseBody(null)
@@ -168,7 +171,7 @@ export function useApiRequest() {
       abortControllerRef.current = controller
 
       try {
-        const { url, headers, body } = buildRequest(messages, systemPrompt)
+        const { url, headers, body } = buildRequest(messages, systemPrompt, overrides)
 
         const response = await fetch(url, {
           method: 'POST',
@@ -192,7 +195,9 @@ export function useApiRequest() {
           return
         }
 
-        if (!params.stream) {
+        const effectiveStream = overrides?.params?.stream ?? params.stream
+
+        if (!effectiveStream) {
           const data = (await response.json()) as unknown
           setResponseBody(data)
           lastResponseRef.current = data

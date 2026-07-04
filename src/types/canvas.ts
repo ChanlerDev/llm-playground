@@ -11,15 +11,29 @@ export interface Viewport {
   zoom: number
 }
 
-export interface MessagesBlock {
+export type CanvasBlockKind = 'messages' | 'request-json'
+
+export interface BaseCanvasBlock {
   id: string
+  kind: CanvasBlockKind
   title: string
   position: Position
+  isCollapsed: boolean
+}
+
+export interface MessagesBlock extends BaseCanvasBlock {
+  kind: 'messages'
   messages: Message[]
   systemPrompt: string
   isActive: boolean
-  isCollapsed: boolean
 }
+
+export interface JsonRequestBlock extends BaseCanvasBlock {
+  kind: 'request-json'
+  json: string
+}
+
+export type CanvasBlock = MessagesBlock | JsonRequestBlock
 
 export interface Connection {
   id: string
@@ -29,7 +43,7 @@ export interface Connection {
 }
 
 export interface CanvasState {
-  blocks: MessagesBlock[]
+  blocks: CanvasBlock[]
   connections: Connection[]
   viewport: Viewport
 }
@@ -37,11 +51,30 @@ export interface CanvasState {
 export function createBlock(position: Position, title?: string): MessagesBlock {
   return {
     id: crypto.randomUUID(),
+    kind: 'messages',
     title: title ?? 'Untitled',
     position,
     messages: [{ role: 'user', content: '' }],
     systemPrompt: '',
     isActive: false,
+    isCollapsed: false,
+  }
+}
+
+export function createJsonRequestBlock(position: Position, title?: string): JsonRequestBlock {
+  return {
+    id: crypto.randomUUID(),
+    kind: 'request-json',
+    title: title ?? 'Request JSON',
+    position,
+    json: [
+      '{',
+      '  "temperature": 0.2,',
+      '  "maxTokens": 1024,',
+      '  "stream": true,',
+      '  "tools": []',
+      '}',
+    ].join('\n'),
     isCollapsed: false,
   }
 }

@@ -6,6 +6,7 @@ import { Canvas, ProviderFloat } from '@/components/canvas'
 import { ResponsePanel } from '@/components/ResponsePanel'
 import { StatsDashboard } from '@/components/StatsDashboard'
 import { Button } from '@/components/ui/button'
+import { resolveRequestOverridesForBlock } from '@/services/request-block'
 
 function App() {
   const canvas = useCanvasStore()
@@ -14,6 +15,7 @@ function App() {
   const [responseOpen, setResponseOpen] = useState(true)
   const [responseWidth, setResponseWidth] = useState(360)
   const [loadingBlockId, setLoadingBlockId] = useState<string | null>(null)
+  const [requestError, setRequestError] = useState<string | null>(null)
 
   // Track which block is being sent so we can auto-append response
   const sendingBlockIdRef = useRef<string | null>(null)
@@ -25,11 +27,21 @@ function App() {
   const handleBlockSend = useCallback(
     (blockId: string) => {
       const block = canvas.blocks.find((b) => b.id === blockId)
-      if (!block || !api.config.apiKey) return
+      if (!block || block.kind !== 'messages' || !api.config.apiKey) return
+      const resolved = resolveRequestOverridesForBlock(
+        block,
+        canvas.blocks,
+        canvas.connections,
+      )
+      if (!resolved.ok) {
+        setRequestError(resolved.error)
+        return
+      }
+      setRequestError(null)
       canvas.setActiveBlock(blockId)
       sendingBlockIdRef.current = blockId
       setLoadingBlockId(blockId)
-      api.sendRequest(block.messages, block.systemPrompt)
+      api.sendRequest(block.messages, block.systemPrompt, resolved.overrides)
     },
     [canvas, api],
   )
@@ -41,7 +53,7 @@ function App() {
     if (prevIsLoading.current && !api.isLoading && sendingBlockIdRef.current) {
       const blockId = sendingBlockIdRef.current
       const block = canvas.blocks.find((b) => b.id === blockId)
-      if (block && !api.error) {
+      if (block?.kind === 'messages' && !api.error) {
         const responseMessages = api.getResponseMessages()
         if (responseMessages.length > 0) {
           canvas.setBlockMessages(blockId, [...block.messages, ...responseMessages])
@@ -83,6 +95,7 @@ function App() {
       if (e.key === 'Escape') {
         e.preventDefault()
         api.abort()
+        setRequestError(null)
         setLoadingBlockId(null)
         sendingBlockIdRef.current = null
       }
@@ -176,6 +189,7 @@ function App() {
             onBlockSend={handleBlockSend}
             onAbort={api.abort}
             onAddBlock={canvas.addBlock}
+            onAddJsonRequestBlock={canvas.addJsonRequestBlock}
             onAddConnection={canvas.addConnection}
             onDeleteConnection={canvas.deleteConnection}
             onUpdateConnection={canvas.updateConnection}
@@ -197,7 +211,7 @@ function App() {
             >
               <ResponsePanel
                 isLoading={api.isLoading}
-                error={api.error}
+                error={requestError ?? api.error}
                 responseBody={api.responseBody}
                 assembledContent={api.assembledContent}
                 chunks={api.chunks}

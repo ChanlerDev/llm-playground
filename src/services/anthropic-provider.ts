@@ -22,6 +22,7 @@ export function buildAnthropicRequest(
   messages: Message[],
   params: RequestParams,
   tools?: ToolDefinition[],
+  bodyOverrides?: Record<string, unknown>,
 ): { url: string; headers: Record<string, string>; body: AnthropicRequest } {
   const url = `${config.baseUrl}/v1/messages`
 
@@ -93,6 +94,11 @@ export function buildAnthropicRequest(
       description: t.description,
       input_schema: toolsToInputSchema(t),
     }))
+  }
+
+  if (bodyOverrides) {
+    const { messages: _messages, ...safeOverrides } = bodyOverrides
+    Object.assign(body, safeOverrides)
   }
 
   return { url, headers, body }

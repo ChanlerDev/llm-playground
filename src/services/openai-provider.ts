@@ -22,6 +22,7 @@ export function buildOpenAIRequest(
   messages: Message[],
   params: RequestParams,
   tools?: ToolDefinition[],
+  bodyOverrides?: Record<string, unknown>,
 ): { url: string; headers: Record<string, string>; body: OpenAIRequest } {
   const url = `${config.baseUrl}/v1/chat/completions`
 
@@ -86,6 +87,11 @@ export function buildOpenAIRequest(
 
   if (params.stream) {
     body.stream_options = { include_usage: true }
+  }
+
+  if (bodyOverrides) {
+    const { messages: _messages, ...safeOverrides } = bodyOverrides
+    Object.assign(body, safeOverrides)
   }
 
   return { url, headers, body }

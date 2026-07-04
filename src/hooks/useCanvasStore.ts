@@ -1,23 +1,82 @@
 import { useState, useCallback, useEffect } from 'react'
 import type {
   CanvasState,
-  MessagesBlock,
+  CanvasBlock,
   Connection,
+  JsonRequestBlock,
+  MessagesBlock,
   Position,
   Viewport,
 } from '@/types/canvas'
-import { createBlock, createConnection } from '@/types/canvas'
+import { createBlock, createConnection, createJsonRequestBlock } from '@/types/canvas'
 import type { Message } from '@/types/provider'
 
 const STORAGE_KEY = 'llm-canvas-state'
 
 const DEFAULT_VIEWPORT: Viewport = { x: 0, y: 0, zoom: 1 }
 
+function normalizeBlock(block: Partial<CanvasBlock> & Record<string, unknown>): CanvasBlock | null {
+  if (typeof block.id !== 'string' || typeof block.title !== 'string') return null
+  if (
+    !block.position ||
+    typeof block.position !== 'object' ||
+    typeof (block.position as Position).x !== 'number' ||
+    typeof (block.position as Position).y !== 'number'
+  ) {
+    return null
+  }
+
+  if (block.kind === 'request-json') {
+    return {
+      id: block.id,
+      kind: 'request-json',
+      title: block.title,
+      position: block.position as Position,
+      json: typeof block.json === 'string' ? block.json : '{}',
+      isCollapsed: Boolean(block.isCollapsed),
+    }
+  }
+
+  return {
+    id: block.id,
+    kind: 'messages',
+    title: block.title,
+    position: block.position as Position,
+    messages: Array.isArray(block.messages) ? (block.messages as Message[]) : [],
+    systemPrompt: typeof block.systemPrompt === 'string' ? block.systemPrompt : '',
+    isActive: Boolean(block.isActive),
+    isCollapsed: Boolean(block.isCollapsed),
+  }
+}
+
+function normalizeState(state: CanvasState): CanvasState {
+  const blocks = Array.isArray(state.blocks)
+    ? state.blocks
+        .map((block) => normalizeBlock(block as Partial<CanvasBlock> & Record<string, unknown>))
+        .filter((block): block is CanvasBlock => Boolean(block))
+    : []
+
+  const hasActiveMessagesBlock = blocks.some(
+    (block) => block.kind === 'messages' && block.isActive,
+  )
+  const normalizedBlocks = hasActiveMessagesBlock
+    ? blocks
+    : blocks.map((block, index) =>
+        block.kind === 'messages' ? { ...block, isActive: index === 0 } : block,
+      )
+
+  return {
+    blocks: normalizedBlocks,
+    connections: Array.isArray(state.connections) ? state.connections : [],
+    viewport: state.viewport ?? DEFAULT_VIEWPORT,
+  }
+}
+
 function loadState(): CanvasState | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
-    return JSON.parse(raw) as CanvasState
+    return normalizeState(JSON.parse(raw) as CanvasState)
   } catch {
     return null
   }
@@ -64,10 +123,23 @@ export function useCanvasStore() {
     })
   }, [])
 
-  const updateBlock = useCallback((id: string, patch: Partial<MessagesBlock>) => {
+  const addJsonRequestBlock = useCallback((position: Position, title?: string) => {
+    setState((prev) => {
+      const block = createJsonRequestBlock(position, title)
+      return { ...prev, blocks: [...prev.blocks, block] }
+    })
+  }, [])
+
+  const updateBlock = useCallback((id: string, patch: Partial<MessagesBlock> | Partial<JsonRequestBlock>) => {
     setState((prev) => ({
       ...prev,
-      blocks: prev.blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)),
+      blocks: prev.blocks.map((b): CanvasBlock => {
+        if (b.id !== id) return b
+        if (b.kind === 'messages') {
+          return { ...b, ...(patch as Partial<MessagesBlock>), kind: 'messages' }
+        }
+        return { ...b, ...(patch as Partial<JsonRequestBlock>), kind: 'request-json' }
+      }),
     }))
   }, [])
 
@@ -85,12 +157,17 @@ export function useCanvasStore() {
     setState((prev) => {
       const source = prev.blocks.find((b) => b.id === id)
       if (!source) return prev
-      const copy = createBlock(
-        { x: source.position.x + 40, y: source.position.y + 40 },
-        `${source.title} (copy)`,
-      )
-      copy.messages = structuredClone(source.messages)
-      copy.systemPrompt = source.systemPrompt
+      const position = { x: source.position.x + 40, y: source.position.y + 40 }
+      const copy =
+        source.kind === 'request-json'
+          ? createJsonRequestBlock(position, `${source.title} (copy)`)
+          : createBlock(position, `${source.title} (copy)`)
+      if (source.kind === 'request-json') {
+        ;(copy as JsonRequestBlock).json = source.json
+      } else {
+        ;(copy as MessagesBlock).messages = structuredClone(source.messages)
+        ;(copy as MessagesBlock).systemPrompt = source.systemPrompt
+      }
       return { ...prev, blocks: [...prev.blocks, copy] }
     })
   }, [])
@@ -98,7 +175,9 @@ export function useCanvasStore() {
   const setActiveBlock = useCallback((id: string) => {
     setState((prev) => ({
       ...prev,
-      blocks: prev.blocks.map((b) => ({ ...b, isActive: b.id === id })),
+      blocks: prev.blocks.map((b) =>
+        b.kind === 'messages' ? { ...b, isActive: b.id === id } : b,
+      ),
     }))
   }, [])
 
@@ -114,7 +193,7 @@ export function useCanvasStore() {
     setState((prev) => ({
       ...prev,
       blocks: prev.blocks.map((b) =>
-        b.id === blockId ? { ...b, messages } : b,
+        b.id === blockId && b.kind === 'messages' ? { ...b, messages } : b,
       ),
     }))
   }, [])
@@ -123,7 +202,16 @@ export function useCanvasStore() {
     setState((prev) => ({
       ...prev,
       blocks: prev.blocks.map((b) =>
-        b.id === blockId ? { ...b, systemPrompt } : b,
+        b.id === blockId && b.kind === 'messages' ? { ...b, systemPrompt } : b,
+      ),
+    }))
+  }, [])
+
+  const setJsonRequest = useCallback((blockId: string, json: string) => {
+    setState((prev) => ({
+      ...prev,
+      blocks: prev.blocks.map((b) =>
+        b.id === blockId && b.kind === 'request-json' ? { ...b, json } : b,
       ),
     }))
   }, [])
@@ -154,7 +242,10 @@ export function useCanvasStore() {
   }, [])
 
   // Derived
-  const activeBlock = state.blocks.find((b) => b.isActive) ?? state.blocks[0] ?? null
+  const activeBlock =
+    state.blocks.find((b): b is MessagesBlock => b.kind === 'messages' && b.isActive) ??
+    state.blocks.find((b): b is MessagesBlock => b.kind === 'messages') ??
+    null
 
   return {
     state,
@@ -165,6 +256,7 @@ export function useCanvasStore() {
 
     setViewport,
     addBlock,
+    addJsonRequestBlock,
     updateBlock,
     deleteBlock,
     duplicateBlock,
@@ -172,6 +264,7 @@ export function useCanvasStore() {
     moveBlock,
     setBlockMessages,
     setBlockSystemPrompt,
+    setJsonRequest,
     addConnection,
     updateConnection,
     deleteConnection,

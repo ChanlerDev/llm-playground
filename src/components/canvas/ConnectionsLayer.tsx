@@ -1,48 +1,51 @@
 import { useState, useRef, useEffect } from 'react'
 import { Trash2 } from 'lucide-react'
-import type { Connection, MessagesBlock, Position, Viewport } from '@/types/canvas'
+import type { CanvasBlock, Connection, Position, Viewport } from '@/types/canvas'
 
 interface PreviewLine {
-  fromBlock: MessagesBlock
+  fromBlock: CanvasBlock
   cursorPos: Position
 }
 
 interface ConnectionsLayerProps {
   connections: Connection[]
-  blocks: MessagesBlock[]
+  blocks: CanvasBlock[]
   viewport: Viewport
   onDeleteConnection: (id: string) => void
   onUpdateConnection: (id: string, patch: Partial<Connection>) => void
   previewLine: PreviewLine | null
 }
 
-const BLOCK_WIDTH = 320
 const HEADER_MID_Y = 18
 
-function getBlockCenter(block: MessagesBlock): { x: number; y: number } {
+function getBlockWidth(block: CanvasBlock): number {
+  return block.kind === 'request-json' ? 360 : 320
+}
+
+function getBlockCenter(block: CanvasBlock): { x: number; y: number } {
   return {
-    x: block.position.x + BLOCK_WIDTH / 2,
+    x: block.position.x + getBlockWidth(block) / 2,
     y: block.position.y + HEADER_MID_Y,
   }
 }
 
 function getConnectionPoints(
-  from: MessagesBlock,
-  to: MessagesBlock,
+  from: CanvasBlock,
+  to: CanvasBlock,
 ): { x1: number; y1: number; x2: number; y2: number } {
   const fromCenter = getBlockCenter(from)
   const toCenter = getBlockCenter(to)
 
   const dx = toCenter.x - fromCenter.x
-  const x1 = fromCenter.x + (dx > 0 ? BLOCK_WIDTH / 2 : -BLOCK_WIDTH / 2)
-  const x2 = toCenter.x + (dx > 0 ? -BLOCK_WIDTH / 2 : BLOCK_WIDTH / 2)
+  const x1 = fromCenter.x + (dx > 0 ? getBlockWidth(from) / 2 : -getBlockWidth(from) / 2)
+  const x2 = toCenter.x + (dx > 0 ? -getBlockWidth(to) / 2 : getBlockWidth(to) / 2)
 
   return { x1, y1: fromCenter.y, x2, y2: toCenter.y }
 }
 
-function getNearestPort(block: MessagesBlock, target: Position): Position {
+function getNearestPort(block: CanvasBlock, target: Position): Position {
   const leftPort = { x: block.position.x, y: block.position.y + HEADER_MID_Y }
-  const rightPort = { x: block.position.x + BLOCK_WIDTH, y: block.position.y + HEADER_MID_Y }
+  const rightPort = { x: block.position.x + getBlockWidth(block), y: block.position.y + HEADER_MID_Y }
 
   const distLeft = Math.hypot(target.x - leftPort.x, target.y - leftPort.y)
   const distRight = Math.hypot(target.x - rightPort.x, target.y - rightPort.y)

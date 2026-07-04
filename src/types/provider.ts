@@ -37,6 +37,12 @@ export interface RequestParams {
   stop?: string[]
 }
 
+export interface RequestOverrides {
+  params?: Partial<RequestParams>
+  tools?: ToolDefinition[]
+  body?: Record<string, unknown>
+}
+
 export interface ToolParameter {
   name: string
   type: string
