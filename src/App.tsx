@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, type CSSProperties } from 'react'
 import { Terminal, PanelRightOpen, PanelRightClose } from 'lucide-react'
 import { useCanvasStore } from '@/hooks/useCanvasStore'
 import { useApiRequest } from '@/hooks/useApiRequest'
@@ -138,7 +138,9 @@ function App() {
           <h1 className="text-body-sm font-semibold">LLM Canvas</h1>
         </div>
         <div className="flex items-center gap-3">
-          <StatsDashboard stats={api.stats} isLoading={api.isLoading} />
+          <div className="hidden sm:block">
+            <StatsDashboard stats={api.stats} isLoading={api.isLoading} />
+          </div>
           <Button
             variant="ghost"
             size="icon-xs"
@@ -155,7 +157,7 @@ function App() {
       </header>
 
       {/* Main area */}
-      <main className="flex min-h-0 flex-1">
+      <main className="flex min-h-0 flex-1 flex-col md:flex-row">
         {/* Canvas */}
         <div className="relative min-h-0 flex-1">
           {/* Provider float */}
@@ -201,13 +203,13 @@ function App() {
           <>
             {/* Resize handle */}
             <div
-              className="w-1 cursor-col-resize bg-hairline hover:bg-primary/30 active:bg-primary/50"
+              className="hidden w-1 cursor-col-resize bg-hairline hover:bg-primary/30 active:bg-primary/50 md:block"
               onPointerDown={handleResizeStart}
             />
 
             <div
-              className="min-h-0 shrink-0 overflow-hidden border-l border-hairline"
-              style={{ width: responseWidth }}
+              className="h-[42vh] min-h-0 w-full overflow-hidden border-t border-hairline md:h-auto md:w-[var(--response-width)] md:shrink-0 md:border-l md:border-t-0"
+              style={{ '--response-width': `${responseWidth}px` } as CSSProperties}
             >
               <ResponsePanel
                 isLoading={api.isLoading}

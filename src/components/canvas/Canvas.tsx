@@ -375,7 +375,7 @@ export function Canvas({
         </div>
       )}
 
-      <div className="absolute right-4 top-4 z-20 flex items-center gap-2">
+      <div className="absolute right-4 top-16 z-20 flex items-center gap-2 sm:top-4">
         <Button
           variant="outline"
           size="sm"
