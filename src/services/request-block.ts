@@ -23,6 +23,22 @@ const PARAM_KEYS: Record<string, keyof RequestParams> = {
   stop: 'stop',
 }
 
+function normalizeParamValue(key: keyof RequestParams, value: unknown): unknown {
+  if (key === 'stream') {
+    if (typeof value !== 'boolean') throw new Error('stream must be a boolean')
+    return value
+  }
+  if (key === 'stop') {
+    const values = stringArray(value)
+    if (!values) throw new Error('stop must be an array of strings')
+    return values
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`${key} must be a finite number`)
+  }
+  return value
+}
+
 function isObject(value: unknown): value is JsonObject {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
@@ -137,7 +153,7 @@ export function parseJsonRequestBlock(json: string): ParseResult {
 
       const paramKey = PARAM_KEYS[key]
       if (paramKey) {
-        ;(params[paramKey] as unknown) = value
+        ;(params[paramKey] as unknown) = normalizeParamValue(paramKey, value)
         continue
       }
 

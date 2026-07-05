@@ -90,7 +90,8 @@ export function buildOpenAIRequest(
   }
 
   if (bodyOverrides) {
-    const { messages: _messages, ...safeOverrides } = bodyOverrides
+    const safeOverrides = { ...bodyOverrides }
+    delete safeOverrides.messages
     Object.assign(body, safeOverrides)
   }
 

@@ -119,6 +119,7 @@ export function useApiRequest() {
   const [assembledContent, setAssembledContent] = useState('')
   const [chunks, setChunks] = useState<SSEChunk[]>([])
   const [stats, setStats] = useState<RequestStats>(createInitialStats)
+  const [requestStreamMode, setRequestStreamMode] = useState(params.stream)
 
   const lastResponseRef = useRef<unknown>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -162,6 +163,8 @@ export function useApiRequest() {
       lastResponseRef.current = null
       streamingToolCallsRef.current = []
       streamingAnthropicToolUseRef.current = []
+      const effectiveStream = overrides?.params?.stream ?? params.stream
+      setRequestStreamMode(effectiveStream)
 
       const startTime = performance.now()
       setStats({ ...createInitialStats(), startTime })
@@ -194,8 +197,6 @@ export function useApiRequest() {
           setIsLoading(false)
           return
         }
-
-        const effectiveStream = overrides?.params?.stream ?? params.stream
 
         if (!effectiveStream) {
           const data = (await response.json()) as unknown
@@ -419,6 +420,7 @@ export function useApiRequest() {
     assembledContent,
     chunks,
     stats,
+    requestStreamMode,
     sendRequest,
     abort,
     getResponseMessages,

@@ -20,8 +20,8 @@ function App() {
   // Track which block is being sent so we can auto-append response
   const sendingBlockIdRef = useRef<string | null>(null)
 
-  const isStreamMode = api.params.stream
-  const isActivelyStreaming = api.params.stream && api.isLoading
+  const isStreamMode = api.requestStreamMode
+  const isActivelyStreaming = api.requestStreamMode && api.isLoading
 
   // Send request for a specific block
   const handleBlockSend = useCallback(
