@@ -33,6 +33,9 @@ interface CanvasBlockProps {
   onPortDragStart: (clientX: number, clientY: number) => void
   onBlockHover: (entering: boolean) => void
   onBlockClickForConnection: () => void
+  onMessageDragStart: (messageIndex: number, clientX: number, clientY: number) => void
+  onMoveMessageToBlock: (sourceBlockId: string, messageIndex: number) => void
+  attachedRequestTitle: string | null
   zoom: number
 }
 
@@ -57,6 +60,9 @@ export function CanvasBlock({
   onPortDragStart,
   onBlockHover,
   onBlockClickForConnection,
+  onMessageDragStart,
+  onMoveMessageToBlock,
+  attachedRequestTitle,
   zoom,
 }: CanvasBlockProps) {
   const dragRef = useRef<{ startX: number; startY: number; blockX: number; blockY: number } | null>(null)
@@ -136,6 +142,36 @@ export function CanvasBlock({
       onMessagesChange(block.messages.filter((_, i) => i !== idx))
     },
     [block.messages, onMessagesChange],
+  )
+
+  const handleMessageDragStart = useCallback(
+    (e: React.DragEvent, idx: number) => {
+      e.stopPropagation()
+      e.dataTransfer.effectAllowed = 'move'
+      e.dataTransfer.setData(
+        'application/x-llm-message',
+        JSON.stringify({ sourceBlockId: block.id, messageIndex: idx }),
+      )
+    },
+    [block.id],
+  )
+
+  const handleMessageDrop = useCallback(
+    (e: React.DragEvent) => {
+      const raw = e.dataTransfer.getData('application/x-llm-message')
+      if (!raw) return
+      e.preventDefault()
+      e.stopPropagation()
+      try {
+        const parsed = JSON.parse(raw) as { sourceBlockId?: string; messageIndex?: number }
+        if (typeof parsed.sourceBlockId === 'string' && typeof parsed.messageIndex === 'number') {
+          onMoveMessageToBlock(parsed.sourceBlockId, parsed.messageIndex)
+        }
+      } catch {
+        // Ignore malformed drag payloads from outside the app.
+      }
+    },
+    [onMoveMessageToBlock],
   )
 
   // Port drag start handler
@@ -263,6 +299,11 @@ export function CanvasBlock({
             Active
           </span>
         )}
+        {attachedRequestTitle && (
+          <span className="min-w-0 max-w-[88px] shrink truncate rounded-pill bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+            {attachedRequestTitle}
+          </span>
+        )}
 
         {/* Actions */}
         <div className="flex shrink-0 items-center gap-0.5">
@@ -303,7 +344,15 @@ export function CanvasBlock({
       {!block.isCollapsed && (
         <>
           {/* Scrollable messages area */}
-          <div className="max-h-[400px] overflow-y-auto p-2" data-scrollable>
+          <div
+            className="max-h-[400px] overflow-y-auto p-2"
+            data-scrollable
+            data-message-drop-target
+            onDrop={handleMessageDrop}
+            onDragOver={(e) => {
+              if (e.dataTransfer.types.includes('application/x-llm-message')) e.preventDefault()
+            }}
+          >
             {/* System prompt */}
             {(block.systemPrompt || editingMessageIdx === -1) && (
               <div className="mb-2 rounded border-l-2 border-l-timeline-thinking bg-canvas-soft p-2">
@@ -325,23 +374,35 @@ export function CanvasBlock({
             {block.messages.map((msg, idx) => (
               <div
                 key={idx}
-                className={`group mb-1.5 rounded border-l-2 p-2 ${ROLE_COLORS[msg.role] ?? 'border-l-hairline'} hover:bg-canvas-soft`}
+                draggable
+                onDragStart={(e) => handleMessageDragStart(e, idx)}
+                className={`group mb-1.5 cursor-grab rounded border-l-2 p-2 ${ROLE_COLORS[msg.role] ?? 'border-l-hairline'} hover:bg-canvas-soft active:cursor-grabbing`}
               >
                 <div className="mb-1 flex items-center justify-between">
-                  <select
-                    className="bg-transparent text-[10px] font-medium uppercase tracking-wider text-muted-soft outline-none"
-                    value={msg.role}
-                    onChange={(e) => {
-                      e.stopPropagation()
-                      updateMessage(idx, { role: e.target.value })
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <option value="user">user</option>
-                    <option value="assistant">assistant</option>
-                    <option value="system">system</option>
-                    <option value="tool">tool</option>
-                  </select>
+                  <div className="flex items-center gap-1">
+                    <GripVertical
+                      className="size-3 cursor-grab text-muted-soft active:cursor-grabbing"
+                      onPointerDown={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        onMessageDragStart(idx, e.clientX, e.clientY)
+                      }}
+                    />
+                    <select
+                      className="bg-transparent text-[10px] font-medium uppercase tracking-wider text-muted-soft outline-none"
+                      value={msg.role}
+                      onChange={(e) => {
+                        e.stopPropagation()
+                        updateMessage(idx, { role: e.target.value })
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <option value="user">user</option>
+                      <option value="assistant">assistant</option>
+                      <option value="system">system</option>
+                      <option value="tool">tool</option>
+                    </select>
+                  </div>
                   <button
                     className="hidden rounded p-0.5 text-muted hover:text-semantic-error group-hover:block"
                     onClick={(e) => {

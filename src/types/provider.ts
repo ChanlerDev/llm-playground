@@ -56,6 +56,7 @@ export interface ToolDefinition {
   description: string
   parameters: ToolParameter[]
   enabled: boolean
+  presetId?: string
 }
 
 export interface SSEChunk {

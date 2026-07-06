@@ -99,8 +99,8 @@ export function useApiRequest() {
   }, [tools])
 
   const DEFAULT_PARAMS: RequestParams = {
-    temperature: 1,
-    maxTokens: 1024,
+    temperature: 0.7,
+    maxTokens: 4096,
     topP: 1,
     stream: true,
   }

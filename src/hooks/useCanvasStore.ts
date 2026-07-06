@@ -3,12 +3,18 @@ import type {
   CanvasState,
   CanvasBlock,
   Connection,
-  JsonRequestBlock,
+  AssistantOutputBlock,
   MessagesBlock,
   Position,
+  RequestBlock,
   Viewport,
 } from '@/types/canvas'
-import { createBlock, createConnection, createJsonRequestBlock } from '@/types/canvas'
+import {
+  createAssistantOutputBlock,
+  createBlock,
+  createConnection,
+  createRequestBlock,
+} from '@/types/canvas'
 import type { Message } from '@/types/provider'
 
 const STORAGE_KEY = 'llm-canvas-state'
@@ -26,13 +32,45 @@ function normalizeBlock(block: Partial<CanvasBlock> & Record<string, unknown>): 
     return null
   }
 
-  if (block.kind === 'request-json') {
+  const rawKind = block.kind as unknown
+  if (rawKind === 'request' || rawKind === 'request-json') {
     return {
       id: block.id,
-      kind: 'request-json',
+      kind: 'request',
+      title: block.title === 'Request JSON' ? 'Request' : block.title,
+      position: block.position as Position,
+      params: {
+        temperature: 0.7,
+        maxTokens: 4096,
+        topP: 1,
+        stream: true,
+        ...(typeof block.params === 'object' && block.params ? block.params : {}),
+      },
+      tools: Array.isArray(block.tools) ? block.tools : [],
+      modelOverride: typeof block.modelOverride === 'string' ? block.modelOverride : '',
+      stopText: typeof block.stopText === 'string' ? block.stopText : '',
+      advancedJson:
+        typeof block.advancedJson === 'string'
+          ? block.advancedJson
+          : typeof block.json === 'string'
+            ? block.json
+            : '',
+      isCollapsed: Boolean(block.isCollapsed),
+    }
+  }
+
+  if (block.kind === 'assistant-output') {
+    return {
+      id: block.id,
+      kind: 'assistant-output',
       title: block.title,
       position: block.position as Position,
-      json: typeof block.json === 'string' ? block.json : '{}',
+      sourceBlockId: typeof block.sourceBlockId === 'string' ? block.sourceBlockId : '',
+      content: typeof block.content === 'string' ? block.content : '',
+      status:
+        block.status === 'complete' || block.status === 'error' || block.status === 'streaming'
+          ? block.status
+          : 'streaming',
       isCollapsed: Boolean(block.isCollapsed),
     }
   }
@@ -123,14 +161,26 @@ export function useCanvasStore() {
     })
   }, [])
 
-  const addJsonRequestBlock = useCallback((position: Position, title?: string) => {
+  const addRequestBlock = useCallback((position: Position, title?: string) => {
     setState((prev) => {
-      const block = createJsonRequestBlock(position, title)
+      const block = createRequestBlock(position, title)
       return { ...prev, blocks: [...prev.blocks, block] }
     })
   }, [])
 
-  const updateBlock = useCallback((id: string, patch: Partial<MessagesBlock> | Partial<JsonRequestBlock>) => {
+  const addAssistantOutputBlock = useCallback((position: Position, sourceBlockId: string) => {
+    const block = createAssistantOutputBlock(position, sourceBlockId)
+    setState((prev) => ({
+      ...prev,
+      blocks: [...prev.blocks, block],
+    }))
+    return block.id
+  }, [])
+
+  const updateBlock = useCallback((
+    id: string,
+    patch: Partial<MessagesBlock> | Partial<RequestBlock> | Partial<AssistantOutputBlock>,
+  ) => {
     setState((prev) => ({
       ...prev,
       blocks: prev.blocks.map((b): CanvasBlock => {
@@ -138,7 +188,10 @@ export function useCanvasStore() {
         if (b.kind === 'messages') {
           return { ...b, ...(patch as Partial<MessagesBlock>), kind: 'messages' }
         }
-        return { ...b, ...(patch as Partial<JsonRequestBlock>), kind: 'request-json' }
+        if (b.kind === 'request') {
+          return { ...b, ...(patch as Partial<RequestBlock>), kind: 'request' }
+        }
+        return { ...b, ...(patch as Partial<AssistantOutputBlock>), kind: 'assistant-output' }
       }),
     }))
   }, [])
@@ -158,16 +211,20 @@ export function useCanvasStore() {
       const source = prev.blocks.find((b) => b.id === id)
       if (!source) return prev
       const position = { x: source.position.x + 40, y: source.position.y + 40 }
-      const copy =
-        source.kind === 'request-json'
-          ? createJsonRequestBlock(position, `${source.title} (copy)`)
-          : createBlock(position, `${source.title} (copy)`)
-      if (source.kind === 'request-json') {
-        ;(copy as JsonRequestBlock).json = source.json
-      } else {
+      if (source.kind === 'request') {
+        const copy = createRequestBlock(position, `${source.title} (copy)`)
+        copy.params = structuredClone(source.params)
+        copy.tools = structuredClone(source.tools)
+        copy.modelOverride = source.modelOverride
+        copy.stopText = source.stopText
+        copy.advancedJson = source.advancedJson
+        return { ...prev, blocks: [...prev.blocks, copy] }
+      }
+      if (source.kind === 'assistant-output') return prev
+
+      const copy = createBlock(position, `${source.title} (copy)`)
         ;(copy as MessagesBlock).messages = structuredClone(source.messages)
         ;(copy as MessagesBlock).systemPrompt = source.systemPrompt
-      }
       return { ...prev, blocks: [...prev.blocks, copy] }
     })
   }, [])
@@ -207,20 +264,96 @@ export function useCanvasStore() {
     }))
   }, [])
 
-  const setJsonRequest = useCallback((blockId: string, json: string) => {
+  const updateAssistantOutput = useCallback((blockId: string, patch: Partial<AssistantOutputBlock>) => {
     setState((prev) => ({
       ...prev,
       blocks: prev.blocks.map((b) =>
-        b.id === blockId && b.kind === 'request-json' ? { ...b, json } : b,
+        b.id === blockId && b.kind === 'assistant-output' ? { ...b, ...patch } : b,
       ),
     }))
   }, [])
 
+  const moveMessageToNewBlock = useCallback((
+    sourceBlockId: string,
+    messageIndex: number,
+    position: Position,
+  ) => {
+    setState((prev) => {
+      const source = prev.blocks.find(
+        (block): block is MessagesBlock => block.id === sourceBlockId && block.kind === 'messages',
+      )
+      if (!source || !source.messages[messageIndex]) return prev
+
+      const message = structuredClone(source.messages[messageIndex])
+      const nextSourceMessages = source.messages.filter((_, index) => index !== messageIndex)
+      const newBlock = createBlock(position, `${message.role} message`)
+      newBlock.messages = [message]
+      newBlock.systemPrompt = ''
+
+      return {
+        ...prev,
+        blocks: [
+          ...prev.blocks.map((block) =>
+            block.id === sourceBlockId && block.kind === 'messages'
+              ? { ...block, messages: nextSourceMessages }
+              : block,
+          ),
+          newBlock,
+        ],
+      }
+    })
+  }, [])
+
+  const moveMessageToBlock = useCallback((
+    sourceBlockId: string,
+    targetBlockId: string,
+    messageIndex: number,
+  ) => {
+    if (sourceBlockId === targetBlockId) return
+    setState((prev) => {
+      const source = prev.blocks.find(
+        (block): block is MessagesBlock => block.id === sourceBlockId && block.kind === 'messages',
+      )
+      const target = prev.blocks.find(
+        (block): block is MessagesBlock => block.id === targetBlockId && block.kind === 'messages',
+      )
+      if (!source || !target || !source.messages[messageIndex]) return prev
+      const message = structuredClone(source.messages[messageIndex])
+
+      return {
+        ...prev,
+        blocks: prev.blocks
+          .map((block) => {
+            if (block.id === sourceBlockId && block.kind === 'messages') {
+              return {
+                ...block,
+                messages: block.messages.filter((_, index) => index !== messageIndex),
+              }
+            }
+            if (block.id === targetBlockId && block.kind === 'messages') {
+              return { ...block, messages: [...block.messages, message] }
+            }
+            return block
+          })
+          .filter((block) => {
+            if (block.id !== sourceBlockId || block.kind !== 'messages') return true
+            if (block.isActive) return true
+            return !(block.messages.length === 0 && block.title.endsWith(' message'))
+          }),
+      }
+    })
+  }, [])
+
   // Connections
   const addConnection = useCallback(
-    (fromBlockId: string, toBlockId: string, label: string = '') => {
+    (
+      fromBlockId: string,
+      toBlockId: string,
+      label: string = '',
+      variant: 'solid' | 'dashed' = 'solid',
+    ) => {
       setState((prev) => {
-        const conn = createConnection(fromBlockId, toBlockId, label)
+        const conn = createConnection(fromBlockId, toBlockId, label, variant)
         return { ...prev, connections: [...prev.connections, conn] }
       })
     },
@@ -256,7 +389,8 @@ export function useCanvasStore() {
 
     setViewport,
     addBlock,
-    addJsonRequestBlock,
+    addRequestBlock,
+    addAssistantOutputBlock,
     updateBlock,
     deleteBlock,
     duplicateBlock,
@@ -264,7 +398,9 @@ export function useCanvasStore() {
     moveBlock,
     setBlockMessages,
     setBlockSystemPrompt,
-    setJsonRequest,
+    updateAssistantOutput,
+    moveMessageToNewBlock,
+    moveMessageToBlock,
     addConnection,
     updateConnection,
     deleteConnection,

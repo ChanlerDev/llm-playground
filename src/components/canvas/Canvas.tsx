@@ -1,24 +1,33 @@
 import { useRef, useCallback, useState, useEffect } from 'react'
-import { Braces, MessageSquarePlus } from 'lucide-react'
+import { MessageSquarePlus, Settings2 } from 'lucide-react'
 import { useGesture } from '@use-gesture/react'
 import type {
   CanvasBlock as CanvasBlockModel,
   Connection,
-  JsonRequestBlock as JsonRequestBlockModel,
+  AssistantOutputBlock as AssistantOutputBlockModel,
   MessagesBlock,
   Position,
+  RequestBlock,
   Viewport,
 } from '@/types/canvas'
 import { CanvasBlock } from './CanvasBlock'
-import { JsonRequestBlock } from './JsonRequestBlock'
+import { RequestConfigBlock } from './RequestConfigBlock'
+import { AssistantOutputBlock } from './AssistantOutputBlock'
 import { ConnectionsLayer } from './ConnectionsLayer'
 import type { Message } from '@/types/provider'
 import { Button } from '@/components/ui/button'
+import { findAttachedRequestBlock } from '@/services/request-block'
 
 export type ConnectionMode =
   | { type: 'idle' }
   | { type: 'dragging'; fromBlockId: string; cursorPos: Position }
   | { type: 'button'; fromBlockId: string; cursorPos: Position }
+
+type MessageDragMode = {
+  sourceBlockId: string
+  messageIndex: number
+  cursorPos: Position
+} | null
 
 interface CanvasProps {
   viewport: Viewport
@@ -31,7 +40,7 @@ interface CanvasProps {
   onBlockSelect: (id: string) => void
   onBlockUpdate: (
     id: string,
-    patch: Partial<MessagesBlock> | Partial<JsonRequestBlockModel>,
+    patch: Partial<MessagesBlock> | Partial<RequestBlock> | Partial<AssistantOutputBlockModel>,
   ) => void
   onBlockDelete: (id: string) => void
   onBlockDuplicate: (id: string) => void
@@ -40,10 +49,17 @@ interface CanvasProps {
   onBlockSend: (blockId: string) => void
   onAbort: () => void
   onAddBlock: (position: Position) => void
-  onAddJsonRequestBlock: (position: Position) => void
-  onAddConnection: (fromId: string, toId: string, label?: string) => void
+  onAddRequestBlock: (position: Position) => void
+  onAddConnection: (
+    fromId: string,
+    toId: string,
+    label?: string,
+    variant?: 'solid' | 'dashed',
+  ) => void
   onDeleteConnection: (id: string) => void
   onUpdateConnection: (id: string, patch: Partial<Connection>) => void
+  onMoveMessageToCanvas: (sourceBlockId: string, messageIndex: number, position: Position) => void
+  onMoveMessageToBlock: (sourceBlockId: string, targetBlockId: string, messageIndex: number) => void
 }
 
 const MIN_ZOOM = 0.25
@@ -51,11 +67,11 @@ const MAX_ZOOM = 3
 const DOT_SIZE = 1.5
 const DOT_SPACING = 24
 const BLOCK_WIDTH = 320
-const REQUEST_BLOCK_WIDTH = 360
+const REQUEST_BLOCK_WIDTH = 380
 const BLOCK_HEADER_HEIGHT = 36
 
 function getBlockWidth(block: CanvasBlockModel): number {
-  return block.kind === 'request-json' ? REQUEST_BLOCK_WIDTH : BLOCK_WIDTH
+  return block.kind === 'request' ? REQUEST_BLOCK_WIDTH : BLOCK_WIDTH
 }
 
 export function Canvas({
@@ -75,10 +91,12 @@ export function Canvas({
   onBlockSend,
   onAbort,
   onAddBlock,
-  onAddJsonRequestBlock,
+  onAddRequestBlock,
   onAddConnection,
   onDeleteConnection,
   onUpdateConnection,
+  onMoveMessageToCanvas,
+  onMoveMessageToBlock,
 }: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const isDraggingBlock = useRef(false)
@@ -86,6 +104,7 @@ export function Canvas({
   // Connection mode state machine
   const [connectionMode, setConnectionMode] = useState<ConnectionMode>({ type: 'idle' })
   const [hoverTargetBlockId, setHoverTargetBlockId] = useState<string | null>(null)
+  const [messageDrag, setMessageDrag] = useState<MessageDragMode>(null)
 
   // --- Connection: port drag start ---
   const handlePortDragStart = useCallback((blockId: string, clientX: number, clientY: number) => {
@@ -95,6 +114,70 @@ export function Canvas({
     const canvasY = (clientY - rect.top - viewport.y) / viewport.zoom
     setConnectionMode({ type: 'dragging', fromBlockId: blockId, cursorPos: { x: canvasX, y: canvasY } })
   }, [viewport])
+
+  const handleMessageDragStart = useCallback((
+    sourceBlockId: string,
+    messageIndex: number,
+    clientX: number,
+    clientY: number,
+  ) => {
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const canvasX = (clientX - rect.left - viewport.x) / viewport.zoom
+    const canvasY = (clientY - rect.top - viewport.y) / viewport.zoom
+    isDraggingBlock.current = true
+    setMessageDrag({
+      sourceBlockId,
+      messageIndex,
+      cursorPos: { x: canvasX, y: canvasY },
+    })
+  }, [viewport])
+
+  useEffect(() => {
+    if (!messageDrag) return
+
+    const handleMove = (e: PointerEvent) => {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const canvasX = (e.clientX - rect.left - viewport.x) / viewport.zoom
+      const canvasY = (e.clientY - rect.top - viewport.y) / viewport.zoom
+      setMessageDrag((prev) => prev ? { ...prev, cursorPos: { x: canvasX, y: canvasY } } : prev)
+    }
+
+    const handleUp = (e: PointerEvent) => {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const canvasX = (e.clientX - rect.left - viewport.x) / viewport.zoom
+      const canvasY = (e.clientY - rect.top - viewport.y) / viewport.zoom
+      const targetBlock = [...blocks].reverse().find((block) => {
+        const bh = block.isCollapsed ? BLOCK_HEADER_HEIGHT : 420
+        return (
+          canvasX >= block.position.x &&
+          canvasX <= block.position.x + getBlockWidth(block) &&
+          canvasY >= block.position.y &&
+          canvasY <= block.position.y + bh
+        )
+      })
+
+      if (
+        targetBlock?.kind === 'messages' &&
+        targetBlock.id !== messageDrag.sourceBlockId
+      ) {
+        onMoveMessageToBlock(messageDrag.sourceBlockId, targetBlock.id, messageDrag.messageIndex)
+      } else {
+        onMoveMessageToCanvas(messageDrag.sourceBlockId, messageDrag.messageIndex, { x: canvasX, y: canvasY })
+      }
+      setMessageDrag(null)
+      isDraggingBlock.current = false
+    }
+
+    document.addEventListener('pointermove', handleMove)
+    document.addEventListener('pointerup', handleUp)
+    return () => {
+      document.removeEventListener('pointermove', handleMove)
+      document.removeEventListener('pointerup', handleUp)
+    }
+  }, [blocks, messageDrag, onMoveMessageToBlock, onMoveMessageToCanvas, viewport])
 
   // --- Connection: button mode start (🔗 click) ---
   const handleConnectionButtonStart = useCallback((blockId: string) => {
@@ -116,11 +199,14 @@ export function Canvas({
     if (connectionMode.type === 'idle') return
     const fromId = connectionMode.fromBlockId
     if (fromId && fromId !== targetBlockId) {
-      onAddConnection(fromId, targetBlockId)
+      const fromBlock = blocks.find((block) => block.id === fromId)
+      const toBlock = blocks.find((block) => block.id === targetBlockId)
+      const label = fromBlock?.kind === 'request' || toBlock?.kind === 'request' ? 'request' : ''
+      onAddConnection(fromId, targetBlockId, label)
     }
     setConnectionMode({ type: 'idle' })
     setHoverTargetBlockId(null)
-  }, [connectionMode, onAddConnection])
+  }, [blocks, connectionMode, onAddConnection])
 
   // --- Document-level pointer tracking for dragging mode ---
   const draggingFromBlockId = connectionMode.type === 'dragging' ? connectionMode.fromBlockId : null
@@ -169,7 +255,10 @@ export function Canvas({
         return null
       })()
       if (hitId && hitId !== draggingFromBlockId) {
-        onAddConnection(draggingFromBlockId, hitId)
+        const fromBlock = blocks.find((block) => block.id === draggingFromBlockId)
+        const toBlock = blocks.find((block) => block.id === hitId)
+        const label = fromBlock?.kind === 'request' || toBlock?.kind === 'request' ? 'request' : ''
+        onAddConnection(draggingFromBlockId, hitId, label)
       }
       setConnectionMode({ type: 'idle' })
       setHoverTargetBlockId(null)
@@ -303,6 +392,45 @@ export function Canvas({
     }
   }, [viewport])
 
+  const readMessageDragData = useCallback((dataTransfer: DataTransfer): {
+    sourceBlockId: string
+    messageIndex: number
+  } | null => {
+    const raw = dataTransfer.getData('application/x-llm-message')
+    if (!raw) return null
+    try {
+      const parsed = JSON.parse(raw) as { sourceBlockId?: string; messageIndex?: number }
+      if (typeof parsed.sourceBlockId !== 'string' || typeof parsed.messageIndex !== 'number') {
+        return null
+      }
+      return { sourceBlockId: parsed.sourceBlockId, messageIndex: parsed.messageIndex }
+    } catch {
+      return null
+    }
+  }, [])
+
+  const handleCanvasDrop = useCallback(
+    (e: React.DragEvent) => {
+      const target = e.target as HTMLElement
+      if (target.closest('[data-message-drop-target]')) return
+      const dragData = readMessageDragData(e.dataTransfer)
+      if (!dragData) return
+      e.preventDefault()
+      e.stopPropagation()
+      const rect = containerRef.current!.getBoundingClientRect()
+      const x = (e.clientX - rect.left - viewport.x) / viewport.zoom
+      const y = (e.clientY - rect.top - viewport.y) / viewport.zoom
+      onMoveMessageToCanvas(dragData.sourceBlockId, dragData.messageIndex, { x, y })
+    },
+    [onMoveMessageToCanvas, readMessageDragData, viewport],
+  )
+
+  const handleCanvasDragOver = useCallback((e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes('application/x-llm-message')) {
+      e.preventDefault()
+    }
+  }, [])
+
   // Click on background in button mode → cancel
   const handleBackgroundClick = useCallback(
     (e: React.MouseEvent) => {
@@ -367,6 +495,8 @@ export function Canvas({
       style={dotGridStyle}
       onDoubleClick={handleDoubleClick}
       onClick={handleBackgroundClick}
+      onDrop={handleCanvasDrop}
+      onDragOver={handleCanvasDragOver}
     >
       {/* Button mode banner */}
       {connectionMode.type === 'button' && (
@@ -395,11 +525,11 @@ export function Canvas({
           onClick={(e) => {
             e.stopPropagation()
             const pos = getDefaultNewBlockPosition()
-            onAddJsonRequestBlock({ x: pos.x + 40, y: pos.y + 40 })
+            onAddRequestBlock({ x: pos.x + 40, y: pos.y + 40 })
           }}
         >
-          <Braces className="size-3.5" />
-          JSON
+          <Settings2 className="size-3.5" />
+          Request
         </Button>
       </div>
 
@@ -444,10 +574,19 @@ export function Canvas({
               onPortDragStart={(clientX, clientY) => handlePortDragStart(block.id, clientX, clientY)}
               onBlockHover={(entering) => handleBlockHover(block.id, entering)}
               onBlockClickForConnection={() => handleBlockClickForConnection(block.id)}
+              onMessageDragStart={(messageIndex, clientX, clientY) =>
+                handleMessageDragStart(block.id, messageIndex, clientX, clientY)
+              }
+              onMoveMessageToBlock={(sourceBlockId, messageIndex) =>
+                onMoveMessageToBlock(sourceBlockId, block.id, messageIndex)
+              }
+              attachedRequestTitle={
+                findAttachedRequestBlock(block.id, blocks, connections)?.title ?? null
+              }
               zoom={viewport.zoom}
             />
-          ) : (
-            <JsonRequestBlock
+          ) : block.kind === 'request' ? (
+            <RequestConfigBlock
               key={block.id}
               block={block}
               isConnectionTarget={hoverTargetBlockId === block.id}
@@ -456,7 +595,6 @@ export function Canvas({
               onUpdate={(patch) => onBlockUpdate(block.id, patch)}
               onDelete={() => onBlockDelete(block.id)}
               onDuplicate={() => onBlockDuplicate(block.id)}
-              onJsonChange={(json) => onBlockUpdate(block.id, { json })}
               onDragStart={handleBlockDragStart}
               onDragEnd={handleBlockDragEnd}
               onConnectionButtonStart={() => handleConnectionButtonStart(block.id)}
@@ -465,9 +603,24 @@ export function Canvas({
               onBlockClickForConnection={() => handleBlockClickForConnection(block.id)}
               zoom={viewport.zoom}
             />
+          ) : (
+            <AssistantOutputBlock key={block.id} block={block} />
           ),
         )}
       </div>
+
+      {messageDrag && (
+        <div
+          className="pointer-events-none absolute z-30 rounded border border-primary bg-surface-card px-2 py-1 text-[12px] text-primary shadow-sm"
+          style={{
+            left: messageDrag.cursorPos.x * viewport.zoom + viewport.x,
+            top: messageDrag.cursorPos.y * viewport.zoom + viewport.y,
+            transform: 'translate(8px, 8px)',
+          }}
+        >
+          Move message
+        </div>
+      )}
 
       {/* Zoom indicator */}
       <div className="absolute bottom-4 left-4 rounded-md border border-hairline bg-surface-card px-2 py-1 text-caption text-muted">

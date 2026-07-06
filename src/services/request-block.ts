@@ -4,7 +4,7 @@ import type {
   ToolDefinition,
   ToolParameter,
 } from '@/types/provider'
-import type { CanvasBlock, Connection, JsonRequestBlock, MessagesBlock } from '@/types/canvas'
+import type { CanvasBlock, Connection, MessagesBlock, RequestBlock } from '@/types/canvas'
 
 type JsonObject = Record<string, unknown>
 
@@ -118,7 +118,9 @@ function normalizeTool(value: unknown, index: number): ToolDefinition {
   }
 }
 
-export function parseJsonRequestBlock(json: string): ParseResult {
+export function parseAdvancedJsonPatch(json: string): ParseResult {
+  if (!json.trim()) return { ok: true, overrides: {} }
+
   let parsed: unknown
   try {
     parsed = JSON.parse(json)
@@ -130,11 +132,11 @@ export function parseJsonRequestBlock(json: string): ParseResult {
   }
 
   if (!isObject(parsed)) {
-    return { ok: false, error: 'JSON Request Block must contain a JSON object.' }
+    return { ok: false, error: 'Advanced JSON patch must contain a JSON object.' }
   }
 
   if (Object.prototype.hasOwnProperty.call(parsed, 'messages')) {
-    return { ok: false, error: 'JSON Request Block cannot override messages.' }
+    return { ok: false, error: 'Request config cannot override messages.' }
   }
 
   try {
@@ -176,13 +178,38 @@ export function parseJsonRequestBlock(json: string): ParseResult {
   }
 }
 
-export function findAttachedJsonRequestBlocks(
+export function resolveRequestBlockOverrides(block: RequestBlock): ParseResult {
+  const advanced = parseAdvancedJsonPatch(block.advancedJson)
+  if (!advanced.ok) return advanced
+
+  const stop = block.stopText
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  return {
+    ok: true,
+    overrides: {
+      params: {
+        ...block.params,
+        ...(stop.length > 0 ? { stop } : {}),
+      },
+      tools: block.tools,
+      body: {
+        ...advanced.overrides.body,
+        ...(block.modelOverride.trim() ? { model: block.modelOverride.trim() } : {}),
+      },
+    },
+  }
+}
+
+export function findAttachedRequestBlocks(
   messageBlockId: string,
   blocks: CanvasBlock[],
   connections: Connection[],
-): JsonRequestBlock[] {
+): RequestBlock[] {
   const blockById = new Map(blocks.map((block) => [block.id, block]))
-  const attached: JsonRequestBlock[] = []
+  const attached: RequestBlock[] = []
 
   for (const connection of connections) {
     const touchesMessage =
@@ -192,7 +219,7 @@ export function findAttachedJsonRequestBlocks(
     const otherId =
       connection.fromBlockId === messageBlockId ? connection.toBlockId : connection.fromBlockId
     const other = blockById.get(otherId)
-    if (other?.kind === 'request-json') {
+    if (other?.kind === 'request') {
       attached.push(other)
     }
   }
@@ -205,13 +232,22 @@ export function resolveRequestOverridesForBlock(
   blocks: CanvasBlock[],
   connections: Connection[],
 ): ParseResult {
-  const attached = findAttachedJsonRequestBlocks(messageBlock.id, blocks, connections)
+  const attached = findAttachedRequestBlocks(messageBlock.id, blocks, connections)
   if (attached.length === 0) return { ok: true, overrides: {} }
   if (attached.length > 1) {
     return {
       ok: false,
-      error: `Only one JSON Request Block can attach to "${messageBlock.title}".`,
+      error: `Only one Request Block can attach to "${messageBlock.title}".`,
     }
   }
-  return parseJsonRequestBlock(attached[0].json)
+  return resolveRequestBlockOverrides(attached[0])
+}
+
+export function findAttachedRequestBlock(
+  messageBlockId: string,
+  blocks: CanvasBlock[],
+  connections: Connection[],
+): RequestBlock | null {
+  const attached = findAttachedRequestBlocks(messageBlockId, blocks, connections)
+  return attached.length === 1 ? attached[0] : null
 }

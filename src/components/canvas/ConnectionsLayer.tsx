@@ -19,7 +19,7 @@ interface ConnectionsLayerProps {
 const HEADER_MID_Y = 18
 
 function getBlockWidth(block: CanvasBlock): number {
-  return block.kind === 'request-json' ? 360 : 320
+  return block.kind === 'request' ? 380 : 320
 }
 
 function getBlockCenter(block: CanvasBlock): { x: number; y: number } {
@@ -201,6 +201,7 @@ export function ConnectionsLayer({
                   fill="none"
                   stroke="var(--muted)"
                   strokeWidth={1.5}
+                  strokeDasharray={conn.variant === 'dashed' ? '8 4' : undefined}
                   markerEnd="url(#arrowhead)"
                   className="pointer-events-auto cursor-pointer"
                   onClick={(e) => {

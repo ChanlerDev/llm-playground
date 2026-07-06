@@ -1,4 +1,4 @@
-import type { Message } from './provider'
+import type { Message, RequestParams, ToolDefinition } from './provider'
 
 export interface Position {
   x: number
@@ -11,7 +11,7 @@ export interface Viewport {
   zoom: number
 }
 
-export type CanvasBlockKind = 'messages' | 'request-json'
+export type CanvasBlockKind = 'messages' | 'request' | 'assistant-output'
 
 export interface BaseCanvasBlock {
   id: string
@@ -28,18 +28,30 @@ export interface MessagesBlock extends BaseCanvasBlock {
   isActive: boolean
 }
 
-export interface JsonRequestBlock extends BaseCanvasBlock {
-  kind: 'request-json'
-  json: string
+export interface RequestBlock extends BaseCanvasBlock {
+  kind: 'request'
+  params: RequestParams
+  tools: ToolDefinition[]
+  modelOverride: string
+  stopText: string
+  advancedJson: string
 }
 
-export type CanvasBlock = MessagesBlock | JsonRequestBlock
+export interface AssistantOutputBlock extends BaseCanvasBlock {
+  kind: 'assistant-output'
+  sourceBlockId: string
+  content: string
+  status: 'streaming' | 'complete' | 'error'
+}
+
+export type CanvasBlock = MessagesBlock | RequestBlock | AssistantOutputBlock
 
 export interface Connection {
   id: string
   fromBlockId: string
   toBlockId: string
   label: string
+  variant?: 'solid' | 'dashed'
 }
 
 export interface CanvasState {
@@ -61,20 +73,38 @@ export function createBlock(position: Position, title?: string): MessagesBlock {
   }
 }
 
-export function createJsonRequestBlock(position: Position, title?: string): JsonRequestBlock {
+export function createRequestBlock(position: Position, title?: string): RequestBlock {
   return {
     id: crypto.randomUUID(),
-    kind: 'request-json',
-    title: title ?? 'Request JSON',
+    kind: 'request',
+    title: title ?? 'Request',
     position,
-    json: [
-      '{',
-      '  "temperature": 0.2,',
-      '  "maxTokens": 1024,',
-      '  "stream": true,',
-      '  "tools": []',
-      '}',
-    ].join('\n'),
+    params: {
+      temperature: 0.7,
+      maxTokens: 4096,
+      topP: 1,
+      stream: true,
+    },
+    tools: [],
+    modelOverride: '',
+    stopText: '',
+    advancedJson: '',
+    isCollapsed: false,
+  }
+}
+
+export function createAssistantOutputBlock(
+  position: Position,
+  sourceBlockId: string,
+): AssistantOutputBlock {
+  return {
+    id: crypto.randomUUID(),
+    kind: 'assistant-output',
+    title: 'Assistant Output',
+    position,
+    sourceBlockId,
+    content: '',
+    status: 'streaming',
     isCollapsed: false,
   }
 }
@@ -83,11 +113,13 @@ export function createConnection(
   fromBlockId: string,
   toBlockId: string,
   label: string = '',
+  variant: 'solid' | 'dashed' = 'solid',
 ): Connection {
   return {
     id: crypto.randomUUID(),
     fromBlockId,
     toBlockId,
     label,
+    variant,
   }
 }

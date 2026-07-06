@@ -11,6 +11,7 @@ import { resolveRequestOverridesForBlock } from '@/services/request-block'
 function App() {
   const canvas = useCanvasStore()
   const api = useApiRequest()
+  const { blocks, deleteBlock, setBlockMessages, updateAssistantOutput } = canvas
 
   const [responseOpen, setResponseOpen] = useState(true)
   const [responseWidth, setResponseWidth] = useState(360)
@@ -19,6 +20,7 @@ function App() {
 
   // Track which block is being sent so we can auto-append response
   const sendingBlockIdRef = useRef<string | null>(null)
+  const outputBlockIdRef = useRef<string | null>(null)
 
   const isStreamMode = api.requestStreamMode
   const isActivelyStreaming = api.requestStreamMode && api.isLoading
@@ -40,11 +42,25 @@ function App() {
       setRequestError(null)
       canvas.setActiveBlock(blockId)
       sendingBlockIdRef.current = blockId
+      const outputBlockId = canvas.addAssistantOutputBlock(
+        { x: block.position.x + 380, y: block.position.y + 24 },
+        blockId,
+      )
+      outputBlockIdRef.current = outputBlockId
+      canvas.addConnection(blockId, outputBlockId, 'assistant', 'dashed')
       setLoadingBlockId(blockId)
       api.sendRequest(block.messages, block.systemPrompt, resolved.overrides)
     },
     [canvas, api],
   )
+
+  useEffect(() => {
+    if (!outputBlockIdRef.current) return
+    updateAssistantOutput(outputBlockIdRef.current, {
+      content: api.assembledContent,
+      status: api.isLoading ? 'streaming' : 'complete',
+    })
+  }, [api.assembledContent, api.isLoading, updateAssistantOutput])
 
   // Auto-append response when loading finishes
   const prevIsLoading = useRef(api.isLoading)
@@ -52,18 +68,22 @@ function App() {
     // Detect transition: loading → not loading
     if (prevIsLoading.current && !api.isLoading && sendingBlockIdRef.current) {
       const blockId = sendingBlockIdRef.current
-      const block = canvas.blocks.find((b) => b.id === blockId)
+      const block = blocks.find((b) => b.id === blockId)
       if (block?.kind === 'messages' && !api.error) {
         const responseMessages = api.getResponseMessages()
         if (responseMessages.length > 0) {
-          canvas.setBlockMessages(blockId, [...block.messages, ...responseMessages])
+          setBlockMessages(blockId, [...block.messages, ...responseMessages])
         }
+      }
+      if (outputBlockIdRef.current) {
+        deleteBlock(outputBlockIdRef.current)
+        outputBlockIdRef.current = null
       }
       sendingBlockIdRef.current = null
       setLoadingBlockId(null)
     }
     prevIsLoading.current = api.isLoading
-  }, [api.isLoading, api.error, api, canvas])
+  }, [api.isLoading, api.error, api, blocks, deleteBlock, setBlockMessages])
 
   // Send from ProviderFloat (uses active block)
   const handleSend = useCallback(() => {
@@ -96,11 +116,15 @@ function App() {
         e.preventDefault()
         api.abort()
         setRequestError(null)
+        if (outputBlockIdRef.current) {
+          deleteBlock(outputBlockIdRef.current)
+          outputBlockIdRef.current = null
+        }
         setLoadingBlockId(null)
         sendingBlockIdRef.current = null
       }
     },
-    [api, canvas.activeBlock, handleBlockSend],
+    [api, canvas.activeBlock, deleteBlock, handleBlockSend],
   )
 
   useEffect(() => {
@@ -191,10 +215,12 @@ function App() {
             onBlockSend={handleBlockSend}
             onAbort={api.abort}
             onAddBlock={canvas.addBlock}
-            onAddJsonRequestBlock={canvas.addJsonRequestBlock}
+            onAddRequestBlock={canvas.addRequestBlock}
             onAddConnection={canvas.addConnection}
             onDeleteConnection={canvas.deleteConnection}
             onUpdateConnection={canvas.updateConnection}
+            onMoveMessageToCanvas={canvas.moveMessageToNewBlock}
+            onMoveMessageToBlock={canvas.moveMessageToBlock}
           />
         </div>
 

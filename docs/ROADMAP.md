@@ -5,7 +5,7 @@
 - [ ] Canvas 画布重构
   - [x] Canvas Messages 基座 → [spec](specs/canvas-messages.md)
   - [x] JSON Request Block 请求参数节点 → [spec](specs/json-request-block.md)
-  - [ ] Visual Request Config 与消息流 → [spec](specs/visual-request-and-message-flow.md)
+  - [x] Visual Request Config 与消息流 → [spec](specs/visual-request-and-message-flow.md)
   - [ ] JSONL Import 对话可视化 → [spec](specs/jsonl-import.md)
   - [ ] Canvas Compact LLM 压缩 → [spec](specs/canvas-compact.md)
   - [x] Canvas Block 布局修复 → [spec](specs/canvas-block-layout-fix.md)
