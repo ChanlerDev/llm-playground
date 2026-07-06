@@ -6,12 +6,13 @@ import {
   Copy,
   GripVertical,
   Link,
+  Plus,
   Settings2,
   Trash2,
   Wrench,
 } from 'lucide-react'
 import type { Position, RequestBlock } from '@/types/canvas'
-import type { RequestParams, ToolDefinition } from '@/types/provider'
+import type { RequestParams, ToolDefinition, ToolParameter } from '@/types/provider'
 import { parseAdvancedJsonPatch } from '@/services/request-block'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -64,6 +65,26 @@ const TOOL_PRESETS: ToolDefinition[] = [
     ],
   },
 ]
+
+const PARAMETER_TYPES = ['string', 'number', 'boolean', 'object', 'array'] as const
+
+function createEmptyParameter(): ToolParameter {
+  return {
+    name: 'input',
+    type: 'string',
+    description: '',
+    required: true,
+  }
+}
+
+function createCustomTool(index: number): ToolDefinition {
+  return {
+    name: `custom_tool_${index}`,
+    description: '',
+    enabled: true,
+    parameters: [createEmptyParameter()],
+  }
+}
 
 interface RequestConfigBlockProps {
   block: RequestBlock
@@ -137,14 +158,69 @@ export function RequestConfigBlock({
   )
 
   const toggleTool = useCallback(
-    (name: string) => {
+    (toolIndex: number) => {
       onUpdate({
-        tools: block.tools.map((tool) =>
-          tool.name === name ? { ...tool, enabled: !tool.enabled } : tool,
+        tools: block.tools.map((tool, index) =>
+          index === toolIndex ? { ...tool, enabled: !tool.enabled } : tool,
         ),
       })
     },
     [block.tools, onUpdate],
+  )
+
+  const addCustomTool = useCallback(() => {
+    onUpdate({ tools: [...block.tools, createCustomTool(block.tools.length + 1)] })
+  }, [block.tools, onUpdate])
+
+  const updateTool = useCallback(
+    (toolIndex: number, patch: Partial<ToolDefinition>) => {
+      onUpdate({
+        tools: block.tools.map((tool, index) =>
+          index === toolIndex ? { ...tool, ...patch } : tool,
+        ),
+      })
+    },
+    [block.tools, onUpdate],
+  )
+
+  const deleteTool = useCallback(
+    (toolIndex: number) => {
+      onUpdate({ tools: block.tools.filter((_, index) => index !== toolIndex) })
+    },
+    [block.tools, onUpdate],
+  )
+
+  const addParameter = useCallback(
+    (toolIndex: number) => {
+      const tool = block.tools[toolIndex]
+      if (!tool) return
+      updateTool(toolIndex, { parameters: [...tool.parameters, createEmptyParameter()] })
+    },
+    [block.tools, updateTool],
+  )
+
+  const updateParameter = useCallback(
+    (toolIndex: number, parameterIndex: number, patch: Partial<ToolParameter>) => {
+      const tool = block.tools[toolIndex]
+      if (!tool) return
+      updateTool(toolIndex, {
+        parameters: tool.parameters.map((parameter, index) =>
+          index === parameterIndex ? { ...parameter, ...patch } : parameter,
+        ),
+      })
+    },
+    [block.tools, updateTool],
+  )
+
+  const deleteParameter = useCallback(
+    (toolIndex: number, parameterIndex: number) => {
+      const tool = block.tools[toolIndex]
+      if (!tool) return
+      updateTool(toolIndex, {
+        parameters: tool.parameters.filter((_, index) => index !== parameterIndex),
+      })
+    },
+    [block.tools, updateTool],
   )
 
   const handlePointerDown = useCallback(
@@ -373,9 +449,21 @@ export function RequestConfigBlock({
           </div>
 
           <div className="mt-3 space-y-2">
-            <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-muted-soft">
-              <Wrench className="size-3" />
-              Tool presets
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-muted-soft">
+                <Wrench className="size-3" />
+                Tools
+              </div>
+              <button
+                className="flex items-center gap-1 rounded border border-hairline bg-canvas-soft px-2 py-1 text-[11px] text-muted hover:text-ink"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  addCustomTool()
+                }}
+              >
+                <Plus className="size-3" />
+                Custom
+              </button>
             </div>
             <div className="grid grid-cols-2 gap-1.5">
               {TOOL_PRESETS.map((preset) => {
@@ -396,19 +484,116 @@ export function RequestConfigBlock({
             </div>
 
             {block.tools.length > 0 && (
-              <div className="space-y-1">
-                {block.tools.map((tool) => (
-                  <label
-                    key={tool.name}
-                    className="flex items-center justify-between rounded border border-hairline bg-surface-card px-2 py-1 text-[12px]"
+              <div className="space-y-2">
+                {block.tools.map((tool, toolIndex) => (
+                  <div
+                    key={`${tool.presetId ?? 'custom'}-${toolIndex}`}
+                    className="rounded border border-hairline bg-surface-card p-2"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <span className="min-w-0 truncate">
-                      {tool.name}
-                      <span className="ml-1 text-[10px] text-muted">{tool.parameters.length} params</span>
-                    </span>
-                    <Switch checked={tool.enabled} onCheckedChange={() => toggleTool(tool.name)} />
-                  </label>
+                    <div className="mb-2 flex items-center gap-2">
+                      <Switch checked={tool.enabled} onCheckedChange={() => toggleTool(toolIndex)} />
+                      <Input
+                        value={tool.name}
+                        className="h-7 min-w-0 flex-1 font-mono text-[12px]"
+                        onChange={(e) => updateTool(toolIndex, { name: e.target.value })}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <button
+                        className="rounded p-1 text-muted hover:bg-canvas-soft hover:text-semantic-error"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          deleteTool(toolIndex)
+                        }}
+                        title="Delete tool"
+                      >
+                        <Trash2 className="size-3" />
+                      </button>
+                    </div>
+                    <textarea
+                      className="min-h-14 w-full resize-y rounded border border-hairline bg-canvas-soft p-2 text-[12px] leading-5 text-ink outline-none focus:border-primary"
+                      value={tool.description}
+                      placeholder="Description"
+                      onChange={(e) => updateTool(toolIndex, { description: e.target.value })}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+
+                    <div className="mt-2 space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] text-muted">
+                        <span>Parameters</span>
+                        <button
+                          className="flex items-center gap-1 rounded px-1 py-0.5 hover:bg-canvas-soft hover:text-ink"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            addParameter(toolIndex)
+                          }}
+                        >
+                          <Plus className="size-3" />
+                          Add
+                        </button>
+                      </div>
+                      {tool.parameters.map((parameter, parameterIndex) => (
+                        <div
+                          key={`${toolIndex}-${parameterIndex}`}
+                          className="grid grid-cols-[1fr_78px_18px_20px] items-center gap-1 rounded border border-hairline-soft bg-canvas-soft p-1"
+                        >
+                          <Input
+                            value={parameter.name}
+                            placeholder="name"
+                            className="h-6 min-w-0 font-mono text-[11px]"
+                            onChange={(e) =>
+                              updateParameter(toolIndex, parameterIndex, { name: e.target.value })
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <select
+                            className="h-6 rounded border border-hairline bg-surface-card px-1 text-[11px] text-ink outline-none"
+                            value={parameter.type}
+                            onChange={(e) =>
+                              updateParameter(toolIndex, parameterIndex, { type: e.target.value })
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {PARAMETER_TYPES.map((type) => (
+                              <option key={type} value={type}>
+                                {type}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="checkbox"
+                            checked={parameter.required}
+                            onChange={(e) =>
+                              updateParameter(toolIndex, parameterIndex, { required: e.target.checked })
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                            title="Required"
+                          />
+                          <button
+                            className="rounded p-0.5 text-muted hover:text-semantic-error"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              deleteParameter(toolIndex, parameterIndex)
+                            }}
+                            title="Delete parameter"
+                          >
+                            <Trash2 className="size-3" />
+                          </button>
+                          <textarea
+                            className="col-span-4 min-h-10 resize-y rounded border border-hairline bg-surface-card p-1.5 text-[11px] leading-4 text-ink outline-none focus:border-primary"
+                            value={parameter.description}
+                            placeholder="Description"
+                            onChange={(e) =>
+                              updateParameter(toolIndex, parameterIndex, {
+                                description: e.target.value,
+                              })
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}

@@ -11,7 +11,7 @@ export interface Viewport {
   zoom: number
 }
 
-export type CanvasBlockKind = 'messages' | 'request' | 'assistant-output'
+export type CanvasBlockKind = 'messages' | 'message' | 'request' | 'assistant-output'
 
 export interface BaseCanvasBlock {
   id: string
@@ -26,6 +26,11 @@ export interface MessagesBlock extends BaseCanvasBlock {
   messages: Message[]
   systemPrompt: string
   isActive: boolean
+}
+
+export interface SingleMessageBlock extends BaseCanvasBlock {
+  kind: 'message'
+  message: Message
 }
 
 export interface RequestBlock extends BaseCanvasBlock {
@@ -44,7 +49,7 @@ export interface AssistantOutputBlock extends BaseCanvasBlock {
   status: 'streaming' | 'complete' | 'error'
 }
 
-export type CanvasBlock = MessagesBlock | RequestBlock | AssistantOutputBlock
+export type CanvasBlock = MessagesBlock | SingleMessageBlock | RequestBlock | AssistantOutputBlock
 
 export interface Connection {
   id: string
@@ -89,6 +94,17 @@ export function createRequestBlock(position: Position, title?: string): RequestB
     modelOverride: '',
     stopText: '',
     advancedJson: '',
+    isCollapsed: false,
+  }
+}
+
+export function createSingleMessageBlock(position: Position, message: Message): SingleMessageBlock {
+  return {
+    id: crypto.randomUUID(),
+    kind: 'message',
+    title: message.role,
+    position,
+    message,
     isCollapsed: false,
   }
 }

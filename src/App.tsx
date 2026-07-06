@@ -189,8 +189,6 @@ function App() {
             config={api.config}
             setConfig={api.setConfig}
             setProvider={api.setProvider}
-            params={api.params}
-            setParams={api.setParams}
             isLoading={api.isLoading}
             activeBlockTitle={canvas.activeBlock?.title ?? null}
             onSend={handleSend}

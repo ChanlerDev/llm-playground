@@ -7,6 +7,7 @@ import type {
   MessagesBlock,
   Position,
   RequestBlock,
+  SingleMessageBlock,
   Viewport,
 } from '@/types/canvas'
 import {
@@ -14,6 +15,7 @@ import {
   createBlock,
   createConnection,
   createRequestBlock,
+  createSingleMessageBlock,
 } from '@/types/canvas'
 import type { Message } from '@/types/provider'
 
@@ -75,6 +77,21 @@ function normalizeBlock(block: Partial<CanvasBlock> & Record<string, unknown>): 
     }
   }
 
+  if (block.kind === 'message') {
+    const message =
+      block.message && typeof block.message === 'object'
+        ? (block.message as Message)
+        : { role: 'user', content: '' }
+    return {
+      id: block.id,
+      kind: 'message',
+      title: typeof block.title === 'string' && block.title ? block.title : message.role,
+      position: block.position as Position,
+      message,
+      isCollapsed: Boolean(block.isCollapsed),
+    }
+  }
+
   return {
     id: block.id,
     kind: 'messages',
@@ -97,10 +114,11 @@ function normalizeState(state: CanvasState): CanvasState {
   const hasActiveMessagesBlock = blocks.some(
     (block) => block.kind === 'messages' && block.isActive,
   )
+  const firstMessagesBlockId = blocks.find((block) => block.kind === 'messages')?.id
   const normalizedBlocks = hasActiveMessagesBlock
     ? blocks
-    : blocks.map((block, index) =>
-        block.kind === 'messages' ? { ...block, isActive: index === 0 } : block,
+    : blocks.map((block) =>
+        block.kind === 'messages' ? { ...block, isActive: block.id === firstMessagesBlockId } : block,
       )
 
   return {
@@ -179,7 +197,11 @@ export function useCanvasStore() {
 
   const updateBlock = useCallback((
     id: string,
-    patch: Partial<MessagesBlock> | Partial<RequestBlock> | Partial<AssistantOutputBlock>,
+    patch:
+      | Partial<MessagesBlock>
+      | Partial<SingleMessageBlock>
+      | Partial<RequestBlock>
+      | Partial<AssistantOutputBlock>,
   ) => {
     setState((prev) => ({
       ...prev,
@@ -190,6 +212,9 @@ export function useCanvasStore() {
         }
         if (b.kind === 'request') {
           return { ...b, ...(patch as Partial<RequestBlock>), kind: 'request' }
+        }
+        if (b.kind === 'message') {
+          return { ...b, ...(patch as Partial<SingleMessageBlock>), kind: 'message' }
         }
         return { ...b, ...(patch as Partial<AssistantOutputBlock>), kind: 'assistant-output' }
       }),
@@ -221,6 +246,11 @@ export function useCanvasStore() {
         return { ...prev, blocks: [...prev.blocks, copy] }
       }
       if (source.kind === 'assistant-output') return prev
+      if (source.kind === 'message') {
+        const copy = createSingleMessageBlock(position, structuredClone(source.message))
+        copy.title = `${source.title} (copy)`
+        return { ...prev, blocks: [...prev.blocks, copy] }
+      }
 
       const copy = createBlock(position, `${source.title} (copy)`)
         ;(copy as MessagesBlock).messages = structuredClone(source.messages)
@@ -286,9 +316,7 @@ export function useCanvasStore() {
 
       const message = structuredClone(source.messages[messageIndex])
       const nextSourceMessages = source.messages.filter((_, index) => index !== messageIndex)
-      const newBlock = createBlock(position, `${message.role} message`)
-      newBlock.messages = [message]
-      newBlock.systemPrompt = ''
+      const newBlock = createSingleMessageBlock(position, message)
 
       return {
         ...prev,
@@ -312,13 +340,17 @@ export function useCanvasStore() {
     if (sourceBlockId === targetBlockId) return
     setState((prev) => {
       const source = prev.blocks.find(
-        (block): block is MessagesBlock => block.id === sourceBlockId && block.kind === 'messages',
+        (block): block is MessagesBlock | SingleMessageBlock =>
+          block.id === sourceBlockId && (block.kind === 'messages' || block.kind === 'message'),
       )
       const target = prev.blocks.find(
         (block): block is MessagesBlock => block.id === targetBlockId && block.kind === 'messages',
       )
-      if (!source || !target || !source.messages[messageIndex]) return prev
-      const message = structuredClone(source.messages[messageIndex])
+      if (!source || !target) return prev
+      const sourceMessage =
+        source.kind === 'messages' ? source.messages[messageIndex] : source.message
+      if (!sourceMessage) return prev
+      const message = structuredClone(sourceMessage)
 
       return {
         ...prev,
@@ -336,10 +368,19 @@ export function useCanvasStore() {
             return block
           })
           .filter((block) => {
+            if (block.id === sourceBlockId && block.kind === 'message') return false
             if (block.id !== sourceBlockId || block.kind !== 'messages') return true
             if (block.isActive) return true
-            return !(block.messages.length === 0 && block.title.endsWith(' message'))
+            return block.messages.length > 0
           }),
+        connections:
+          source.kind === 'message'
+            ? prev.connections.filter(
+                (connection) =>
+                  connection.fromBlockId !== sourceBlockId &&
+                  connection.toBlockId !== sourceBlockId,
+              )
+            : prev.connections,
       }
     })
   }, [])

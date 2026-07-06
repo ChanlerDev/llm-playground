@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **feat**: Custom Tool Builder — add and edit tool definitions directly inside Request Blocks
+- **feat**: Compact Message Blocks — dragged-out messages now become single-message canvas blocks without Messages Block actions
+- **change**: Provider Float now focuses on provider connection settings; request-level model, params, and tools live in Request Blocks
 - **feat**: Visual Request Block — configure params and tool presets without hand-written JSON
 - **feat**: Message assembly — drag message rows out to canvas or into another message block
 - **feat**: Send feedback — show temporary assistant output block while a request is running

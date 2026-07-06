@@ -19,7 +19,9 @@ interface ConnectionsLayerProps {
 const HEADER_MID_Y = 18
 
 function getBlockWidth(block: CanvasBlock): number {
-  return block.kind === 'request' ? 380 : 320
+  if (block.kind === 'request') return 380
+  if (block.kind === 'message') return 280
+  return 320
 }
 
 function getBlockCenter(block: CanvasBlock): { x: number; y: number } {

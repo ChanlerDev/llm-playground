@@ -1,20 +1,16 @@
 import { useState } from 'react'
 import { Settings, Send, Square, X } from 'lucide-react'
-import type { ProviderType, ProviderConfig, RequestParams } from '@/types/provider'
+import type { ProviderType, ProviderConfig } from '@/types/provider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Slider } from '@/components/ui/slider'
-import { Switch } from '@/components/ui/switch'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 interface ProviderFloatProps {
   config: ProviderConfig
   setConfig: (config: ProviderConfig) => void
   setProvider: (provider: ProviderType) => void
-  params: RequestParams
-  setParams: (params: RequestParams) => void
   isLoading: boolean
   activeBlockTitle: string | null
   onSend: () => void
@@ -25,8 +21,6 @@ export function ProviderFloat({
   config,
   setConfig,
   setProvider,
-  params,
-  setParams,
   isLoading,
   activeBlockTitle,
   onSend,
@@ -34,15 +28,8 @@ export function ProviderFloat({
 }: ProviderFloatProps) {
   const [isOpen, setIsOpen] = useState(false)
 
-  const isOpenAI = config.provider === 'openai'
-  const tempMax = isOpenAI ? 2 : 1
-
   function updateConfig(patch: Partial<ProviderConfig>) {
     setConfig({ ...config, ...patch })
-  }
-
-  function updateParams(patch: Partial<RequestParams>) {
-    setParams({ ...params, ...patch })
   }
 
   return (
@@ -115,7 +102,6 @@ export function ProviderFloat({
                 </TabsList>
               </Tabs>
 
-              {/* Connection */}
               <div className="space-y-2">
                 <div className="space-y-1">
                   <Label className="text-[11px] text-muted">Base URL</Label>
@@ -134,74 +120,6 @@ export function ProviderFloat({
                     onChange={(e) => updateConfig({ apiKey: e.target.value })}
                     placeholder="sk-..."
                     className="h-7 text-[12px]"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[11px] text-muted">Model</Label>
-                  <Input
-                    value={config.model}
-                    onChange={(e) => updateConfig({ model: e.target.value })}
-                    placeholder="gpt-4o"
-                    className="h-7 text-[12px]"
-                  />
-                </div>
-              </div>
-
-              {/* Parameters */}
-              <div className="space-y-3">
-                <h4 className="text-caption-upper">Parameters</h4>
-
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-[11px] text-muted">Temperature</Label>
-                    <span className="text-[11px] text-muted">
-                      {params.temperature?.toFixed(2)}
-                    </span>
-                  </div>
-                  <Slider
-                    value={[params.temperature ?? 1]}
-                    min={0}
-                    max={tempMax}
-                    step={0.01}
-                    onValueChange={([v]) => updateParams({ temperature: v })}
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-[11px] text-muted">Max Tokens</Label>
-                    <span className="text-[11px] text-muted">{params.maxTokens}</span>
-                  </div>
-                  <Slider
-                    value={[params.maxTokens ?? 1024]}
-                    min={1}
-                    max={16384}
-                    step={1}
-                    onValueChange={([v]) => updateParams({ maxTokens: v })}
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-[11px] text-muted">Top P</Label>
-                    <span className="text-[11px] text-muted">
-                      {params.topP?.toFixed(2)}
-                    </span>
-                  </div>
-                  <Slider
-                    value={[params.topP ?? 1]}
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    onValueChange={([v]) => updateParams({ topP: v })}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <Label className="text-[11px] text-muted">Stream</Label>
-                  <Switch
-                    checked={params.stream}
-                    onCheckedChange={(v) => updateParams({ stream: v })}
                   />
                 </div>
               </div>

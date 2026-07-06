@@ -8,11 +8,13 @@ import type {
   MessagesBlock,
   Position,
   RequestBlock,
+  SingleMessageBlock as SingleMessageBlockModel,
   Viewport,
 } from '@/types/canvas'
 import { CanvasBlock } from './CanvasBlock'
 import { RequestConfigBlock } from './RequestConfigBlock'
 import { AssistantOutputBlock } from './AssistantOutputBlock'
+import { SingleMessageBlock } from './SingleMessageBlock'
 import { ConnectionsLayer } from './ConnectionsLayer'
 import type { Message } from '@/types/provider'
 import { Button } from '@/components/ui/button'
@@ -40,7 +42,11 @@ interface CanvasProps {
   onBlockSelect: (id: string) => void
   onBlockUpdate: (
     id: string,
-    patch: Partial<MessagesBlock> | Partial<RequestBlock> | Partial<AssistantOutputBlockModel>,
+    patch:
+      | Partial<MessagesBlock>
+      | Partial<SingleMessageBlockModel>
+      | Partial<RequestBlock>
+      | Partial<AssistantOutputBlockModel>,
   ) => void
   onBlockDelete: (id: string) => void
   onBlockDuplicate: (id: string) => void
@@ -67,11 +73,21 @@ const MAX_ZOOM = 3
 const DOT_SIZE = 1.5
 const DOT_SPACING = 24
 const BLOCK_WIDTH = 320
+const MESSAGE_BLOCK_WIDTH = 280
 const REQUEST_BLOCK_WIDTH = 380
 const BLOCK_HEADER_HEIGHT = 36
 
 function getBlockWidth(block: CanvasBlockModel): number {
-  return block.kind === 'request' ? REQUEST_BLOCK_WIDTH : BLOCK_WIDTH
+  if (block.kind === 'request') return REQUEST_BLOCK_WIDTH
+  if (block.kind === 'message') return MESSAGE_BLOCK_WIDTH
+  return BLOCK_WIDTH
+}
+
+function getBlockHitHeight(block: CanvasBlockModel): number {
+  if (block.isCollapsed) return BLOCK_HEADER_HEIGHT
+  if (block.kind === 'request') return 460
+  if (block.kind === 'message') return 170
+  return 420
 }
 
 export function Canvas({
@@ -150,7 +166,7 @@ export function Canvas({
       const canvasX = (e.clientX - rect.left - viewport.x) / viewport.zoom
       const canvasY = (e.clientY - rect.top - viewport.y) / viewport.zoom
       const targetBlock = [...blocks].reverse().find((block) => {
-        const bh = block.isCollapsed ? BLOCK_HEADER_HEIGHT : 420
+        const bh = getBlockHitHeight(block)
         return (
           canvasX >= block.position.x &&
           canvasX <= block.position.x + getBlockWidth(block) &&
@@ -164,7 +180,7 @@ export function Canvas({
         targetBlock.id !== messageDrag.sourceBlockId
       ) {
         onMoveMessageToBlock(messageDrag.sourceBlockId, targetBlock.id, messageDrag.messageIndex)
-      } else {
+      } else if (blocks.find((block) => block.id === messageDrag.sourceBlockId)?.kind === 'messages') {
         onMoveMessageToCanvas(messageDrag.sourceBlockId, messageDrag.messageIndex, { x: canvasX, y: canvasY })
       }
       setMessageDrag(null)
@@ -184,7 +200,7 @@ export function Canvas({
     const block = blocks.find(b => b.id === blockId)
     if (!block) return
     // Initialize cursor at block's right port
-    const cursorPos = { x: block.position.x + BLOCK_WIDTH, y: block.position.y + BLOCK_HEADER_HEIGHT / 2 }
+    const cursorPos = { x: block.position.x + getBlockWidth(block), y: block.position.y + BLOCK_HEADER_HEIGHT / 2 }
     setConnectionMode({ type: 'button', fromBlockId: blockId, cursorPos })
   }, [blocks])
 
@@ -227,7 +243,7 @@ export function Canvas({
       const hitId = (() => {
         for (let i = blocks.length - 1; i >= 0; i--) {
           const b = blocks[i]
-          const bh = b.isCollapsed ? BLOCK_HEADER_HEIGHT : 200
+          const bh = getBlockHitHeight(b)
           if (canvasX >= b.position.x && canvasX <= b.position.x + getBlockWidth(b) &&
               canvasY >= b.position.y && canvasY <= b.position.y + bh) {
             return b.id
@@ -246,7 +262,7 @@ export function Canvas({
       const hitId = (() => {
         for (let i = blocks.length - 1; i >= 0; i--) {
           const b = blocks[i]
-          const bh = b.isCollapsed ? BLOCK_HEADER_HEIGHT : 200
+          const bh = getBlockHitHeight(b)
           if (canvasX >= b.position.x && canvasX <= b.position.x + getBlockWidth(b) &&
               canvasY >= b.position.y && canvasY <= b.position.y + bh) {
             return b.id
@@ -303,7 +319,7 @@ export function Canvas({
       const hitId = (() => {
         for (let i = blocks.length - 1; i >= 0; i--) {
           const b = blocks[i]
-          const bh = b.isCollapsed ? BLOCK_HEADER_HEIGHT : 200
+          const bh = getBlockHitHeight(b)
           if (canvasX >= b.position.x && canvasX <= b.position.x + getBlockWidth(b) &&
               canvasY >= b.position.y && canvasY <= b.position.y + bh) {
             return b.id
@@ -601,6 +617,27 @@ export function Canvas({
               onPortDragStart={(clientX, clientY) => handlePortDragStart(block.id, clientX, clientY)}
               onBlockHover={(entering) => handleBlockHover(block.id, entering)}
               onBlockClickForConnection={() => handleBlockClickForConnection(block.id)}
+              zoom={viewport.zoom}
+            />
+          ) : block.kind === 'message' ? (
+            <SingleMessageBlock
+              key={block.id}
+              block={block}
+              isConnectionTarget={hoverTargetBlockId === block.id}
+              connectionMode={connectionMode}
+              onMove={(pos) => onBlockMove(block.id, pos)}
+              onUpdate={(patch) => onBlockUpdate(block.id, patch)}
+              onDelete={() => onBlockDelete(block.id)}
+              onDuplicate={() => onBlockDuplicate(block.id)}
+              onDragStart={handleBlockDragStart}
+              onDragEnd={handleBlockDragEnd}
+              onConnectionButtonStart={() => handleConnectionButtonStart(block.id)}
+              onPortDragStart={(clientX, clientY) => handlePortDragStart(block.id, clientX, clientY)}
+              onBlockHover={(entering) => handleBlockHover(block.id, entering)}
+              onBlockClickForConnection={() => handleBlockClickForConnection(block.id)}
+              onMessageDragStart={(messageIndex, clientX, clientY) =>
+                handleMessageDragStart(block.id, messageIndex, clientX, clientY)
+              }
               zoom={viewport.zoom}
             />
           ) : (
